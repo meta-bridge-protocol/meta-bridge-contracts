@@ -14,8 +14,5 @@ MetaBridge is an interchain abstraction layer with a customizable security stack
 ### 3. Deploy Escrow
   Escrow is where manages gateway liquidity through a predefined threshold amount.
 
-### 4. Configure MBToken
-  Configure MBToken in order to define supported pathways and required DVNs. We can do it on behalf of you.
-
-### 5. Add token to the bridge
+### 4. Add token to the bridge
   Ask our team to add your token to the bridge.
