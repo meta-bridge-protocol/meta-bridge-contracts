@@ -209,6 +209,10 @@ describe("Gateway", function () {
   // });
 
   describe("Pausable functionality", function () {
+    it("should not allow a user to pause the contract", async function () {
+      await expect(gateway.pause()).to.be.reverted;
+    });
+
     it("should allow the pauser to pause the contract", async function () {
       const PAUSER_ROLE = await gateway.PAUSER_ROLE();
       await gateway.grantRole(PAUSER_ROLE, owner.address);
