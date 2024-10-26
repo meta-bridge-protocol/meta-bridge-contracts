@@ -5,49 +5,94 @@ import {
   deployMockContract,
   MockContract,
 } from "@ethereum-waffle/mock-contract";
-import LZ_ENDPOINT_ABI from "./abi/LayerZeroEndpoint.json";
+// import LZ_ENDPOINT_ABI from "./abi/LayerZeroEndpoint.json";
 import GATEWAY_ABI from "./abi/GatewayV2.json";
-import MBToken_ABI from "../artifacts/contracts/MBToken.sol/MBToken.json";
-import { LayerZeroBridge, MBToken, TestToken } from "../typechain-types";
-
+// import MBToken_ABI from "../artifacts/contracts/MBToken.sol/MBToken.json";
+import {
+  Gateway,
+  LayerZeroBridge,
+  MBToken,
+  TestToken,
+} from "../typechain-types";
+import { Address } from "hardhat-deploy/types";
+const ILzEndpointV2 = require("../artifacts/contracts/interfaces/ILzEndpointV2.sol/ILzEndpointV2.json");
+const ONE = ethers.utils.parseUnits("1", 18);
 describe("LayerZeroBridge", () => {
   let bridge: LayerZeroBridge;
   let lzEndpoint: MockContract;
-  let gateway: MockContract;
-  let gateway1: MockContract;
-  let bridgeToken: MockContract;
+  let gateway: Gateway;
+  let gateway1: Gateway;
+  let bridgeToken: MBToken;
   let nativeToken: TestToken;
   let treasury: SignerWithAddress;
   let treasury1: SignerWithAddress;
   let admin: SignerWithAddress,
     tokenAdder: SignerWithAddress,
     user: SignerWithAddress,
-    testAddress: SignerWithAddress;
-
+    testAddress: SignerWithAddress,
+    lzSendLib: Address,
+    lzReceiveLib: Address;
   before(async () => {
     [admin, tokenAdder, user, treasury, treasury1, testAddress] =
       await ethers.getSigners();
   });
 
-  beforeEach(async () => {
-    lzEndpoint = await deployMockContract(admin, LZ_ENDPOINT_ABI);
-    gateway = await deployMockContract(admin, GATEWAY_ABI);
-    gateway1 = await deployMockContract(admin, GATEWAY_ABI);
-    bridgeToken = await deployMockContract(admin, MBToken_ABI.abi);
-    const BridgeFactory = await ethers.getContractFactory("LayerZeroBridge");
-    bridge = await BridgeFactory.connect(admin).deploy(lzEndpoint.address);
+  const deployBridgeToken = async () => {
+    const requiredDVNs = [admin.address];
+    lzSendLib = admin.address;
+    lzReceiveLib = admin.address;
+    const mbTokenFactory = await ethers.getContractFactory("MBToken");
+    bridgeToken = await mbTokenFactory.deploy(
+      "MyToken",
+      "MTK",
+      lzEndpoint.address,
+      lzSendLib,
+      lzReceiveLib,
+      requiredDVNs,
+      admin.address
+    );
+  };
 
-    await bridge
-      .connect(admin)
-      .grantRole(await bridge.TOKEN_ADDER_ROLE(), tokenAdder.address);
+  const deployGateWay = async () => {
+    const Gateway = await ethers.getContractFactory("Gateway");
+    gateway = await Gateway.deploy(
+      admin.address,
+      nativeToken.address,
+      bridgeToken.address
+    );
+    await gateway.deployed();
+
+    await bridgeToken.setGateway(gateway.address);
+
+    gateway1 = await Gateway.deploy(
+      admin.address,
+      nativeToken.address,
+      bridgeToken.address
+    );
+    await gateway1.deployed();
+  };
+
+  beforeEach(async () => {
+    lzEndpoint = await deployMockContract(admin, ILzEndpointV2.abi);
+    await lzEndpoint.mock.setDelegate.returns();
+    await lzEndpoint.mock.setConfig.returns();
+    await lzEndpoint.mock.eid.returns(30106);
+    await lzEndpoint.mock.quote.returns(["1000000000", 0]);
+
+    await deployBridgeToken();
 
     const TestTokenFactory = await ethers.getContractFactory("TestToken");
-
-    await lzEndpoint.mock.setDelegate.returns();
-
     nativeToken = await TestTokenFactory.deploy("Native Token", "rToken");
     await nativeToken.deployed();
     await nativeToken.mint(user.address, 1000);
+
+    await deployGateWay();
+
+    const BridgeFactory = await ethers.getContractFactory("LayerZeroBridge");
+    bridge = await BridgeFactory.connect(admin).deploy(lzEndpoint.address);
+    await bridge
+      .connect(admin)
+      .grantRole(await bridge.TOKEN_ADDER_ROLE(), tokenAdder.address);
   });
 
   const addToken = async () => {
@@ -145,86 +190,23 @@ describe("LayerZeroBridge", () => {
 
     // it("should quoteSend successfully", async () => {
     //   const amount = ethers.utils.parseUnits("1", 18);
-    //   const dstEid = 10001;
+    //   const dstEid = 30106;
     //   const extraOption = "0x000301001101000000000000000000000000000f4240";
 
     //   await addToken();
 
-    //   const [nativeFee, lzTokenFee] = await bridge.quoteSend(
+    //   const fee = await bridge.quoteSend(
     //     nativeToken.address,
     //     user.address,
     //     dstEid,
     //     amount,
     //     amount,
     //     extraOption,
-    //     true
+    //     false
     //   );
 
-    //   expect(nativeFee).to.be.instanceOf(ethers.BigNumber);
-    //   expect(lzTokenFee).to.be.instanceOf(ethers.BigNumber);
-
-    //   expect(nativeFee.gt(0)).to.be.true;
-    //   expect(lzTokenFee.gt(0)).to.be.true;
-    // });
-
-    // it("should send tokens successfully", async () => {
-    //   const amount = ethers.utils.parseUnits("1", 18);
-    //   const dstEid = 10001; // Destination Endpoint ID
-    //   const extraOption = "0x000301001101000000000000000000000000000f4240"; // Example extra option
-
-    //   await bridge
-    //     .connect(tokenAdder)
-    //     .addToken(
-    //       nativeToken.address,
-    //       bridgeToken.address,
-    //       treasury.address,
-    //       gateway.address,
-    //       true,
-    //       false
-    //     );
-
-    //   await nativeToken.connect(user).approve(bridge.address, amount);
-
-    //   const nativeFee = {
-    //     nativeFee: BigInt(100000000000000000),
-    //     lzTokenFee: BigInt(0),
-    //   };
-
-    //   await expect(
-    //     bridge
-    //       .connect(user)
-    //       .send(
-    //         nativeToken.address,
-    //         dstEid,
-    //         amount,
-    //         amount,
-    //         extraOption,
-    //         nativeFee,
-    //         { value: nativeFee.nativeFee }
-    //       )
-    //   ).not.to.be.reverted;
-
-    // const balanceAfter = await nativeToken.balanceOf(user.address);
-    // expect(balanceAfter).to.equal(999);
-
-    // Check if an event is emitted (if your send function emits events)
-    // await expect(
-    //   bridge
-    //     .connect(user)
-    //     .send(
-    //       nativeToken.address,
-    //       dstEid,
-    //       amount,
-    //       amount,
-    //       extraOption,
-    //       nativeFee,
-    //       {
-    //         value: nativeFee.nativeFee,
-    //       }
-    //     )
-    // )
-    //   .to.emit(bridge, "TokenSent")
-    //   .withArgs(nativeToken.address, dstEid, user.address, amount);
+    //   expect(fee.nativeFee).to.be.a("number");
+    //   expect(fee.lzTokenFee).to.be.a("number");
     // });
   });
 });
