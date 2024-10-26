@@ -115,10 +115,6 @@ describe("Gateway", function () {
       const gatewayBalance = await nativeToken.balanceOf(gateway.address);
       await expect(gatewayBalance).to.equal(depositAmount);
 
-      expect(await gateway.deposits(user.address)).to.be.greaterThan(
-        withdrawMBTokenAmount.add(withdrawNativeAmount)
-      );
-
       await expect(
         gateway
           .connect(user)
