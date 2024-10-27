@@ -62,6 +62,11 @@ describe("LayerZeroBridge", () => {
     );
     await gateway.deployed();
 
+    await bridgeToken.setPeer(
+      30106,
+      "0x000000000000000000000000650a795b3b728df29c252ef49cfd5884b68d8644"
+    );
+
     await bridgeToken.setGateway(gateway.address);
 
     gateway1 = await Gateway.deploy(
@@ -77,7 +82,6 @@ describe("LayerZeroBridge", () => {
     await lzEndpoint.mock.setDelegate.returns();
     await lzEndpoint.mock.setConfig.returns();
     await lzEndpoint.mock.eid.returns(30106);
-    await lzEndpoint.mock.quote.returns(["1000000000", 0]);
 
     await deployBridgeToken();
 
@@ -87,6 +91,11 @@ describe("LayerZeroBridge", () => {
     await nativeToken.mint(user.address, 1000);
 
     await deployGateWay();
+
+    await lzEndpoint.mock.quote.returns([
+      ethers.BigNumber.from(0),
+      ethers.utils.parseUnits("0.000001", 18),
+    ]);
 
     const BridgeFactory = await ethers.getContractFactory("LayerZeroBridge");
     bridge = await BridgeFactory.connect(admin).deploy(lzEndpoint.address);
@@ -188,25 +197,55 @@ describe("LayerZeroBridge", () => {
       ).to.be.revertedWith("Invalid token");
     });
 
-    // it("should quoteSend successfully", async () => {
+    it("should quoteSend successfully", async () => {
+      const amount = ethers.utils.parseUnits("1", 18);
+      const dstEid = 30106;
+      const extraOption = "0x000301001101000000000000000000000000000f4240";
+
+      await addToken();
+
+      const fee = await expect(
+        bridge.quoteSend(
+          nativeToken.address,
+          user.address,
+          dstEid,
+          amount,
+          amount,
+          extraOption,
+          false
+        )
+      ).not.to.be.reverted;
+    });
+
+    // it("should send tokens successfully", async () => {
     //   const amount = ethers.utils.parseUnits("1", 18);
     //   const dstEid = 30106;
     //   const extraOption = "0x000301001101000000000000000000000000000f4240";
 
     //   await addToken();
 
-    //   const fee = await bridge.quoteSend(
-    //     nativeToken.address,
-    //     user.address,
-    //     dstEid,
-    //     amount,
-    //     amount,
-    //     extraOption,
-    //     false
-    //   );
+    //   await nativeToken.mint(user.address, ethers.utils.parseUnits("5", 18));
+    //   await nativeToken.connect(user).approve(bridge.address, amount);
+    //   const MINTER_ROLE = await bridgeToken.MINTER_ROLE();
 
-    //   expect(fee.nativeFee).to.be.a("number");
-    //   expect(fee.lzTokenFee).to.be.a("number");
+    //   await bridgeToken.grantRole(MINTER_ROLE, bridge.address);
+
+    //   const nativeFee = {
+    //     lzTokenFee: BigInt(0),
+    //     nativeFee: ethers.utils.parseUnits("0.000001", 18),
+    //   };
+
+    //   await bridge
+    //     .connect(user)
+    //     .send(
+    //       nativeToken.address,
+    //       dstEid,
+    //       amount,
+    //       amount,
+    //       extraOption,
+    //       nativeFee,
+    //       { value: nativeFee.nativeFee }
+    //     );
     // });
   });
 });
