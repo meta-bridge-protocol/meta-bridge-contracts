@@ -3,9 +3,9 @@ pragma solidity ^0.8.20;
 
 import {MBToken} from "./MBToken.sol";
 
-contract MetaDEUS is MBToken {
+contract MetaLUV is MBToken {
     constructor(
         address _layerZeroEndpoint, // local endpoint address
         address _owner // token owner used as a delegate in LayerZero Endpoint
-    ) MBToken("MetaDEUS", "mbDEUS", _layerZeroEndpoint, _owner) {}
+    ) MBToken("MetaLUV", "mbLUV", _layerZeroEndpoint, _owner) {}
 }
