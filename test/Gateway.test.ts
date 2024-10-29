@@ -203,13 +203,13 @@ describe("Gateway", function () {
       );
     });
 
-    it("should revert if swap amount is 0", async function () {
+    it("swapToNative should revert if swap amount is 0", async function () {
       await expect(gateway.swapToNative(0)).to.be.revertedWith(
         "Gateway: AMOUNT_MUST_BE_GREATER_THAN_0"
       );
     });
 
-    it("should revert if swap amount is 0", async function () {
+    it("swapToMBToken should revert if swap amount is 0", async function () {
       await expect(gateway.swapToMBToken(0)).to.be.revertedWith(
         "Gateway: AMOUNT_MUST_BE_GREATER_THAN_0"
       );
