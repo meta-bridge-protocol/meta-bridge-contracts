@@ -32,7 +32,6 @@ describe("MBToken Contract", function () {
     await layerZeroEndpoint.mock.eid.returns(1);
     lzSendLib = owner.address;
     lzReceiveLib = owner.address;
-    const requiredDVNs = [owner.address];
 
     const mbTokenFactory = await ethers.getContractFactory("MBToken");
 
@@ -40,10 +39,7 @@ describe("MBToken Contract", function () {
       "MyToken",
       "MTK",
       layerZeroEndpoint.address,
-      lzSendLib,
-      lzReceiveLib,
-      requiredDVNs,
-      owner.address
+      lzSendLib
     );
 
     const TestTokenFactory = await ethers.getContractFactory("TestToken");

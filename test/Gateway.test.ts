@@ -30,7 +30,6 @@ describe("Gateway", function () {
 
     lzSendLib = owner.address;
     lzReceiveLib = owner.address;
-    const requiredDVNs = [owner.address];
 
     await layerZeroEndpoint.mock.setConfig.returns();
 
@@ -42,10 +41,7 @@ describe("Gateway", function () {
       "MyToken",
       "MTK",
       layerZeroEndpoint.address,
-      lzSendLib,
-      lzReceiveLib,
-      requiredDVNs,
-      owner.address
+      lzSendLib
     );
 
     const TestTokenFactory = await ethers.getContractFactory("TestToken");
