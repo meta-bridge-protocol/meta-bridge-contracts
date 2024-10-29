@@ -1,8 +1,6 @@
 import { expect } from "chai";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { ethers } from "hardhat";
-import MBToken_ABI from "../artifacts/contracts/MBToken.sol/MBToken.json";
-import GATEWAY_ABI from "./abi/GatewayV2.json";
 import {
   deployMockContract,
   MockContract,
@@ -10,6 +8,7 @@ import {
 import { Escrow, Gateway, MBToken, TestToken } from "../typechain-types";
 import { describe, it, beforeEach } from "mocha";
 import { Address } from "hardhat-deploy/types";
+
 const ILzEndpointV2 = require("../artifacts/contracts/interfaces/ILzEndpointV2.sol/ILzEndpointV2.json");
 
 describe("Escrow", () => {
@@ -27,14 +26,12 @@ describe("Escrow", () => {
 
   const initialThreshold = ethers.utils.parseEther("100");
   const depositAmount = ethers.utils.parseEther("50");
-  const withdrawAmount = ethers.utils.parseEther("50");
 
   before(async () => {
     [owner, depositor, withdrawer, assetManager] = await ethers.getSigners();
   });
 
   const deployMbToken = async () => {
-    const requiredDVNs = [owner.address];
     lzSendLib = owner.address;
     lzReceiveLib = owner.address;
     const mbTokenFactory = await ethers.getContractFactory("MBToken");
@@ -102,8 +99,6 @@ describe("Escrow", () => {
     it("should allow the depositor to deposit tokens if below threshold", async () => {
       await nativeToken.mint(escrow.address, depositAmount);
       await nativeToken.approve(gateway.address, depositAmount);
-
-      //Deposit
       await expect(escrow.connect(depositor).depositToGateway())
         .to.emit(escrow, "DepositToGateway")
         .withArgs(depositAmount, initialThreshold);
@@ -120,26 +115,21 @@ describe("Escrow", () => {
   });
 
   describe("Withdraw Functionality", () => {
+    const withdrawAmount = ethers.utils.parseUnits("10", 18);
     it("should allow the withdrawer to withdraw tokens if above threshold", async () => {
-      const depositAmount = ethers.utils.parseUnits("10", 18);
-      await nativeToken.mint(escrow.address, depositAmount);
-      await nativeToken.approve(gateway.address, depositAmount);
-
+      await nativeToken.mint(escrow.address, withdrawAmount);
+      await nativeToken.approve(gateway.address, withdrawAmount);
       await escrow.connect(depositor).depositToGateway();
-
       await nativeToken.mint(gateway.address, initialThreshold);
       await expect(escrow.connect(withdrawer).withdrawFromGateway())
         .to.emit(escrow, "WithdrawFromGateway")
-        .withArgs(depositAmount, initialThreshold);
+        .withArgs(withdrawAmount, initialThreshold);
     });
 
     it("should revert if the gateway balance is below the threshold", async () => {
-      const depositAmount = ethers.utils.parseUnits("10", 18);
-      await nativeToken.mint(escrow.address, depositAmount);
-      await nativeToken.approve(gateway.address, depositAmount);
-
+      await nativeToken.mint(escrow.address, withdrawAmount);
+      await nativeToken.approve(gateway.address, withdrawAmount);
       await escrow.connect(depositor).depositToGateway();
-
       await expect(
         escrow.connect(withdrawer).withdrawFromGateway()
       ).to.be.revertedWith("Escrow: Gateway balance is below the threshold");
@@ -177,7 +167,6 @@ describe("Escrow", () => {
       await expect(
         escrow.connect(depositor).setTreasureAddress(newTreasureAddress)
       ).to.be.reverted;
-      //   revertedWith("AccessControl: account is missing role");
     });
 
     it("should revert when setting treasure address to address(0)", async function () {
@@ -207,13 +196,11 @@ describe("Escrow", () => {
           .connect(depositor)
           .withdrawERC20(nativeToken.address, ethers.utils.parseEther("10"))
       ).to.be.reverted;
-      //   .to.be.revertedWith("AccessControl: account is missing role");
     });
   });
 
   describe("AccessControl roles", () => {
     it("should revert when non-admin tries to set threshold", async function () {
-      // Non-admin user tries to set threshold
       await expect(
         escrow
           .connect(depositor)
@@ -222,7 +209,6 @@ describe("Escrow", () => {
     });
 
     it("should allow admin to set threshold", async function () {
-      // Admin sets the threshold successfully
       await expect(
         escrow.connect(owner).setThresholdAmount(ethers.utils.parseEther("100"))
       )
