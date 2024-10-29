@@ -5,9 +5,7 @@ import {
   deployMockContract,
   MockContract,
 } from "@ethereum-waffle/mock-contract";
-// import LZ_ENDPOINT_ABI from "./abi/LayerZeroEndpoint.json";
-import GATEWAY_ABI from "./abi/GatewayV2.json";
-// import MBToken_ABI from "../artifacts/contracts/MBToken.sol/MBToken.json";
+
 import {
   Gateway,
   LayerZeroBridge,
@@ -42,14 +40,12 @@ describe("LayerZeroBridge", () => {
     lzSendLib = admin.address;
     lzReceiveLib = admin.address;
     const mbTokenFactory = await ethers.getContractFactory("MBToken");
+
     bridgeToken = await mbTokenFactory.deploy(
       "MyToken",
       "MTK",
       lzEndpoint.address,
-      lzSendLib,
-      lzReceiveLib,
-      requiredDVNs,
-      admin.address
+      lzSendLib
     );
   };
 
