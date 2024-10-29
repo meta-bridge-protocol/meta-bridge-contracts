@@ -24,13 +24,9 @@ contract MBToken is ERC20Burnable, OFT, AccessControl {
         string memory _name,
         string memory _symbol,
         address _layerZeroEndpoint, // local endpoint address
-        address _lzSendLib, // sender MessageLib  address
-        address _lzReceiveLib, // receiver MessageLib address
-        address[] memory _requiredDVNs, // required DVNs
         address _owner // token owner used as a delegate in LayerZero Endpoint
     ) OFT(_name, _symbol, _layerZeroEndpoint, _owner) Ownable(_owner) {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        _setConfig(_lzSendLib, _lzReceiveLib, _requiredDVNs);
     }
 
     function mint(address _to, uint256 _amount) external onlyRole(MINTER_ROLE) {
@@ -110,32 +106,5 @@ contract MBToken is ERC20Burnable, OFT, AccessControl {
         }
 
         emit OFTReceived(_guid, _origin.srcEid, toAddress, amountReceivedLD);
-    }
-
-    function _setConfig(
-        address _sendLib,
-        address _receiveLib,
-        address[] memory _requiredDVNs
-    ) internal {
-        SetConfigParam[] memory configs = new SetConfigParam[](1);
-        bytes memory config = abi.encode(
-            42,
-            _requiredDVNs.length,
-            0,
-            0,
-            _requiredDVNs,
-            new address[](0)
-        );
-        configs[0] = SetConfigParam(endpoint.eid(), 2, config);
-        ILzEndpointV2(address(endpoint)).setConfig(
-            address(this),
-            _sendLib,
-            configs
-        );
-        ILzEndpointV2(address(endpoint)).setConfig(
-            address(this),
-            _receiveLib,
-            configs
-        );
     }
 }

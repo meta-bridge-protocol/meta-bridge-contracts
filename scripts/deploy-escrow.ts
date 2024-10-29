@@ -1,10 +1,10 @@
 import hre, { ethers, upgrades } from "hardhat";
 
 async function deployEscrowContract() {
-  let gateway = "0xCcd1f65346f6CEc7E331184ab16869F145E8383e";
-  let msig = "0xF743e0De4C446A44D9124E240f8b642d8571522F";
+  let gateway = "0xb42cf2f220c38466f41dE9e61dB621B7001D52d8";
+  let msig = "0xb57490CDAABEDb450df33EfCdd93079A24ac5Ce5";
   let thresholdAmount = "5000000000000000000"; // 200 TOKEN
-  let deployer = "0xF743e0De4C446A44D9124E240f8b642d8571522F";
+  let deployer = "0xb57490CDAABEDb450df33EfCdd93079A24ac5Ce5";
   const factory = await ethers.getContractFactory("Escrow", {
     signer: await ethers.getSigner(deployer),
   });
@@ -13,16 +13,15 @@ async function deployEscrowContract() {
     msig,
     thresholdAmount,
   ]);
-  await escrow.waitForDeployment();
+  await escrow.deployed();
   try {
     await hre.run("verify:verify", {
-      address: await escrow.getAddress(),
-      constructorArguments: [gateway, msig, thresholdAmount],
+      address: escrow.address
     });
   } catch {
     console.log("Failed to verify");
   }
-  console.log("Escrow deployed at:", await escrow.getAddress());
+  console.log("Escrow deployed at:", escrow.address);
 }
 
 deployEscrowContract()

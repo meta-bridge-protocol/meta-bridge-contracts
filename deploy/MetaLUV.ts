@@ -1,7 +1,7 @@
 import assert from 'assert'
 import { type DeployFunction } from 'hardhat-deploy/types'
 
-const contractName = 'MetaDEUS'
+const contractName = 'MetaLUV'
 
 function sleep(milliseconds: number) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -41,19 +41,19 @@ const deploy: DeployFunction = async (hre) => {
       deployer, // owner
     ]
 
-    const { address } = await deploy(contractName, {
-        from: deployer,
-        args: args,
-        log: true,
-        skipIfAlreadyDeployed: false,
-    })
+    // const { address } = await deploy(contractName, {
+    //     from: deployer,
+    //     args: args,
+    //     log: true,
+    //     skipIfAlreadyDeployed: false,
+    // })
 
-    console.log(`Deployed contract: ${contractName}, network: ${hre.network.name}, address: ${address}`)
+    // console.log(`Deployed contract: ${contractName}, network: ${hre.network.name}, address: ${address}`)
 
-    await sleep(20000);
+    // await sleep(20000);
 
     await hre.run("verify:verify", {
-      address: address,
+      address: "0x2aB14976B7feffD5859201c71011E5D31166AC9d",
       constructorArguments: args,
       contract: `contracts/${contractName}.sol:${contractName}`
     });
