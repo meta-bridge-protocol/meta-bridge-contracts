@@ -64,14 +64,14 @@ describe("MBToken Contract", function () {
     ).to.be.revertedWith("Gateway is not set");
   });
 
-  it("should set gateway successfully", async () => {
-    await expect(mbToken.connect(owner).setGateway(gateway.address)).not.to.be
-      .reverted;
-  });
-
   it("Should revert if non-owner tries to set gateway", async () => {
     await expect(mbToken.connect(minter).setGateway(gateway.address)).to.be
       .reverted;
+  });
+
+  it("should set gateway successfully", async function () {
+    await mbToken.setGateway(gateway.address);
+    expect(await mbToken.gateway()).to.equal(gateway.address);
   });
 
   it("Should mint tokens correctly", async function () {
@@ -85,11 +85,6 @@ describe("MBToken Contract", function () {
 
     await expect(mbToken.connect(owner).mint(owner.address, amount)).to.be
       .reverted;
-  });
-
-  it("Should set gateway correctly", async function () {
-    await mbToken.setGateway(gateway.address);
-    expect(await mbToken.gateway()).to.equal(gateway.address);
   });
 
   it("Should revert if trying to set zero address as gateway", async function () {
