@@ -42,10 +42,7 @@ describe("Escrow", () => {
       "MyToken",
       "MTK",
       lzEndpoint.address,
-      lzSendLib,
-      lzReceiveLib,
-      requiredDVNs,
-      owner.address
+      lzSendLib
     );
   };
 
