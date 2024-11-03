@@ -5,7 +5,8 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ERC20Burnable} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
-import {IMBToken} from "./interfaces/IMBToken.sol";
+import {MessagingFee, IMBToken} from "./interfaces/IMBToken.sol";
+import {IGateway} from "./interfaces/IGateway.sol";
 import "./interfaces/IMRC20.sol";
 import "./interfaces/IMuonClient.sol";
 
@@ -42,7 +43,7 @@ contract MuonBridge is AccessControl {
 
     // tokenId => Token
     mapping(uint256 => Token) public tokens;
-    mapping(address => uint256) public ids;
+    mapping(address => uint256) public tokenIds;
 
     event AddToken(address addr, uint256 tokenId);
 
@@ -64,7 +65,7 @@ contract MuonBridge is AccessControl {
         address user;
     }
 
-    uint256 public lastTxId = 0; // unique id for deposit tx
+    uint256 public lastTxId; // unique id for deposit tx
     mapping(uint256 => TX) public txs;
 
     // source chain => (tx id => false/true)
@@ -86,21 +87,16 @@ contract MuonBridge is AccessControl {
 
     /* ========== PUBLIC FUNCTIONS ========== */
 
-    function deposit(
-        uint256 amount,
-        uint256 toChain,
-        uint256 tokenId
-    ) external returns (uint256) {
-        return depositFor(msg.sender, amount, toChain, tokenId);
-    }
-
-    function depositFor(
-        address user,
-        uint256 amount,
-        uint256 toChain,
-        uint256 tokenId
-    ) public returns (uint256 txId) {
-        require(toChain != network, "Bridge: selfDeposit");
+    function send(
+        address _nativeToken,
+        uint32 toChain,
+        uint256 _amount,
+        uint256, // _minAmountLD
+        bytes calldata, // _extraOptions
+        MessagingFee calldata // _fee
+    ) external payable {
+        uint256 tokenId = tokenIds[_nativeToken];
+        require(uint256(toChain) != network, "Bridge: selfDeposit");
         require(
             tokens[tokenId].rToken != address(0),
             "Bridge: unknown tokenId"
@@ -112,29 +108,27 @@ contract MuonBridge is AccessControl {
             token.safeTransferFrom(
                 msg.sender,
                 tokens[tokenId].treasury,
-                amount
+                _amount
             );
             uint256 receivedAmount = token.balanceOf(tokens[tokenId].treasury) -
                 balance;
             require(
-                amount == receivedAmount,
+                _amount == receivedAmount,
                 "Received amount does not match sent amount"
             );
         } else {
-            token.burnFrom(msg.sender, amount);
+            token.burnFrom(msg.sender, _amount);
         }
 
-        txId = ++lastTxId;
+        uint256 txId = ++lastTxId;
         txs[txId] = TX({
             tokenId: tokenId,
-            toChain: toChain,
-            amount: amount,
-            user: user
+            toChain: uint256(toChain),
+            amount: _amount,
+            user: msg.sender
         });
 
         emit Deposit(txId);
-
-        return txId;
     }
 
     function claim(
@@ -147,7 +141,7 @@ contract MuonBridge is AccessControl {
         bytes calldata reqId,
         IMuonClient.SchnorrSign calldata signature
     ) external {
-        require(toChain == network, "Bridge: toChain should equal network");
+        require(toChain == network, "Bridge: mismatched toChain");
 
         {
             bytes32 hash = keccak256(
@@ -172,54 +166,27 @@ contract MuonBridge is AccessControl {
         );
 
         claimedTxs[fromChain][txId] = true;
-        IMRC20 token = IMRC20(tokens[tokenId].mbToken); // Mint MUON mbToken
 
-        token.mint(user, amount);
+        IMBToken mbToken = IMBToken(tokens[tokenId].mbToken); // Mint MUON mbToken
+        IGateway gateway = IGateway(mbToken.gateway());
+        uint256 gwBalance = IERC20(gateway.nativeToken()).balanceOf(
+            address(gateway)
+        );
+
+        mbToken.mint(address(this), amount);
+
+        if (gwBalance >= amount) {
+            mbToken.approve(address(gateway), amount);
+            gateway.swapToNativeTo(amount, user);
+        } else {
+            if (gwBalance > 0) {
+                mbToken.approve(address(gateway), gwBalance);
+                gateway.swapToNativeTo(gwBalance, user);
+            }
+            mbToken.transfer(user, amount - gwBalance);
+        }
 
         emit Claim(user, txId, fromChain, amount, tokenId);
-    }
-
-    /* ========== VIEWS ========== */
-
-    function pendingTxs(
-        uint256 fromChain,
-        uint256[] calldata _ids
-    ) external view returns (bool[] memory unclaimedIds) {
-        unclaimedIds = new bool[](_ids.length);
-        for (uint256 i = 0; i < _ids.length; i++) {
-            unclaimedIds[i] = claimedTxs[fromChain][_ids[i]];
-        }
-    }
-
-    function getTx(
-        uint256 _txId
-    )
-        external
-        view
-        returns (
-            uint256 txId,
-            uint256 tokenId,
-            uint256 amount,
-            uint256 fromChain,
-            uint256 toChain,
-            address user
-        )
-    // uint256 timestamp
-    {
-        txId = _txId;
-        tokenId = txs[_txId].tokenId;
-        amount = txs[_txId].amount;
-        fromChain = network;
-        toChain = txs[_txId].toChain;
-        user = txs[_txId].user;
-    }
-
-    function getExecutingChainID() public view returns (uint256) {
-        uint256 id;
-        assembly {
-            id := chainid()
-        }
-        return id;
     }
 
     /* ========== RESTRICTED FUNCTIONS ========== */
@@ -233,7 +200,7 @@ contract MuonBridge is AccessControl {
         bool isMainChain,
         bool isBurnable
     ) external onlyRole(TOKEN_ADDER_ROLE) {
-        require(ids[rToken] == 0, "already exist");
+        require(tokenIds[rToken] == 0, "already exist");
         require(tokens[tokenId].rToken == address(0), "already exist");
 
         tokens[tokenId] = Token(
@@ -244,7 +211,7 @@ contract MuonBridge is AccessControl {
             isMainChain,
             isBurnable
         );
-        ids[rToken] = tokenId;
+        tokenIds[rToken] = tokenId;
 
         emit AddToken(rToken, tokenId);
     }
@@ -253,14 +220,10 @@ contract MuonBridge is AccessControl {
         uint256 tokenId,
         address tokenAddress
     ) external onlyRole(TOKEN_ADDER_ROLE) {
-        require(ids[tokenAddress] == tokenId, "id != addr");
+        require(tokenIds[tokenAddress] == tokenId, "id != addr");
 
-        ids[tokenAddress] = 0;
+        delete tokenIds[tokenAddress];
         delete tokens[tokenId];
-    }
-
-    function getTokenId(address _addr) external view returns (uint256) {
-        return ids[_addr];
     }
 
     function setNetworkID(uint256 _network) external onlyRole(ADMIN_ROLE) {
@@ -295,5 +258,59 @@ contract MuonBridge is AccessControl {
         uint256 _amount
     ) external onlyRole(ADMIN_ROLE) {
         ERC20Burnable(_tokenAddr).transfer(_to, _amount);
+    }
+
+    /* ========== VIEWS ========== */
+
+    function pendingTxs(
+        uint256 fromChain,
+        uint256[] calldata _ids
+    ) external view returns (bool[] memory unclaimedIds) {
+        unclaimedIds = new bool[](_ids.length);
+        for (uint256 i = 0; i < _ids.length; i++) {
+            unclaimedIds[i] = claimedTxs[fromChain][_ids[i]];
+        }
+    }
+
+    function getTx(
+        uint256 _txId
+    )
+        external
+        view
+        returns (
+            uint256 txId,
+            uint256 tokenId,
+            uint256 amount,
+            uint256 fromChain,
+            uint256 toChain,
+            address user
+        )
+    {
+        txId = _txId;
+        tokenId = txs[_txId].tokenId;
+        amount = txs[_txId].amount;
+        fromChain = network;
+        toChain = txs[_txId].toChain;
+        user = txs[_txId].user;
+    }
+
+    function getExecutingChainID() public view returns (uint256) {
+        uint256 id;
+        assembly {
+            id := chainid()
+        }
+        return id;
+    }
+
+    function quoteSend(
+        address, // _nativeToken
+        address, // _from
+        uint32, // _dstEid
+        uint256, // _amount
+        uint256, // _minAmountLD
+        bytes calldata, // _extraOptions
+        bool // _payInLzToken
+    ) external pure returns (uint256 nativeFee, uint256 lzTokenFee) {
+        return (0, 0);
     }
 }
