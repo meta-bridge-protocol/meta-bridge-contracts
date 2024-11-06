@@ -97,9 +97,7 @@ describe("LayerZeroBridge", () => {
     await bridge
       .connect(admin)
       .grantRole(await bridge.TOKEN_ADDER_ROLE(), tokenAdder.address);
-  });
 
-  const addToken = async () => {
     await bridge
       .connect(tokenAdder)
       .addToken(
@@ -110,18 +108,16 @@ describe("LayerZeroBridge", () => {
         true,
         false
       );
-  };
+});
 
   describe("Token operations", () => {
     it("should add token successfully", async () => {
-      await addToken();
       expect((await bridge.tokens(nativeToken.address)).mbToken).to.deep.eq(
         bridgeToken.address
       );
     });
 
     it("should remove token successfully", async () => {
-      await addToken();
 
       expect((await bridge.tokens(nativeToken.address)).mbToken).to.deep.eq(
         bridgeToken.address
@@ -144,7 +140,6 @@ describe("LayerZeroBridge", () => {
     });
 
     it("should update token successfully", async () => {
-      await addToken();
 
       expect((await bridge.tokens(nativeToken.address)).mbToken).to.deep.eq(
         bridgeToken.address
@@ -197,8 +192,6 @@ describe("LayerZeroBridge", () => {
       const dstEid = 30106;
       const extraOption = "0x000301001101000000000000000000000000000f4240";
 
-      await addToken();
-
       const fee = await expect(
         bridge.quoteSend(
           nativeToken.address,
@@ -239,8 +232,6 @@ describe("LayerZeroBridge", () => {
       const dstEid = 30106;
       const extraOption = "0x000301001101000000000000000000000000000f4240";
 
-      await addToken();
-
       const fee = await expect(
         bridge.quoteSend(
           nativeToken.address,
@@ -260,8 +251,6 @@ describe("LayerZeroBridge", () => {
       const dstEid = 30106;
       const extraOption = "0x000301001101000000000000000000000000000f4240";
 
-      await addToken();
-
       const fee = await expect(
         bridge.quoteSend(
           nativeToken.address,
@@ -279,8 +268,6 @@ describe("LayerZeroBridge", () => {
       const amount = ethers.utils.parseUnits("1", 18);
       const dstEid = 30106;
       const extraOption = "0x000301001101000000000000000000000000000f4240";
-
-      await addToken();
 
       await nativeToken.mint(user.address, ethers.utils.parseUnits("5", 18));
       await nativeToken.connect(user).approve(bridge.address, amount);
