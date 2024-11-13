@@ -9,6 +9,7 @@ import {
 import { describe, it, beforeEach } from "mocha";
 import { Address } from "hardhat-deploy/types";
 import { MBToken, TestToken, Gateway } from "../typechain-types";
+import exp from "constants";
 const ILzEndpointV2 = require("../artifacts/contracts/interfaces/ILzEndpointV2.sol/ILzEndpointV2.json");
 
 describe("Gateway", function () {
@@ -17,12 +18,14 @@ describe("Gateway", function () {
   let nativeToken: TestToken;
   let owner: SignerWithAddress;
   let user: SignerWithAddress;
+  let user1: SignerWithAddress;
+  let pauser: SignerWithAddress;
   let layerZeroEndpoint: MockContract;
   let lzSendLib: Address;
   let lzReceiveLib: Address;
   beforeEach(async function () {
     // Deploy mock contracts for MBToken and NativeToken
-    [owner, user] = await ethers.getSigners();
+    [owner, user, user1, pauser] = await ethers.getSigners();
 
     layerZeroEndpoint = await deployMockContract(owner, ILzEndpointV2.abi);
 
@@ -61,72 +64,242 @@ describe("Gateway", function () {
   describe("Deposit", function () {
     it("should allow users to deposit native tokens", async function () {
       const depositAmount = ethers.utils.parseUnits("10", 18);
+
+      expect(
+        await nativeToken.connect(user).balanceOf(user.address)
+      ).to.be.equal(0);
+
       await nativeToken.connect(user).mint(user.address, depositAmount);
+
+      expect(await nativeToken.balanceOf(user.address)).to.be.equal(
+        depositAmount
+      );
+
+      expect(await nativeToken.totalSupply()).to.be.equal(depositAmount);
+
+      //approve
       await nativeToken.connect(user).approve(gateway.address, depositAmount);
 
-      await expect(gateway.connect(user).deposit(depositAmount)).not.to.be
-        .reverted;
+      //check user deposit amount in gateway before deposit
+      expect(await gateway.deposits(user.address)).to.be.equal(0);
 
-      expect(await gateway.deposits(user.address)).to.equal(depositAmount);
+      //deposit nativeToken
+      await gateway.connect(user).deposit(depositAmount);
 
-      const gatewayBalance = await nativeToken.balanceOf(gateway.address);
-      await expect(gatewayBalance).to.equal(depositAmount);
+      //check user nativeToken Balance after deposit
+      expect(await nativeToken.balanceOf(user.address)).to.be.equal(0);
 
-      const receivedAmount = await nativeToken.balanceOf(gateway.address);
-      await expect(receivedAmount).to.equal(depositAmount);
+      //check user deposit amount in gateway after deposit
+      expect(await gateway.deposits(user.address)).to.be.equal(depositAmount);
+
+      //check gateway nativeToken balance after deposit
+      expect(await nativeToken.balanceOf(gateway.address)).to.be.equal(
+        depositAmount
+      );
+    });
+
+    it("should correctly increase user deposit amount", async function () {
+      const depositAmount = ethers.utils.parseUnits("10", 18);
+      const mintAmount = ethers.utils.parseUnits("20", 18);
+      const approveAmount = ethers.utils.parseUnits("20", 18);
+      //check user nativeToken balance before mint
+      expect(
+        await nativeToken.connect(user).balanceOf(user.address)
+      ).to.be.equal(0);
+
+      //mint nativeToken for user
+      await nativeToken.connect(user).mint(user.address, mintAmount);
+
+      //check user nativeToken balance and total supply after mint.
+      expect(
+        await nativeToken.connect(user).balanceOf(user.address)
+      ).to.be.equal(mintAmount);
+      expect(await nativeToken.totalSupply()).to.be.equal(mintAmount);
+
+      //approve
+      await nativeToken.connect(user).approve(gateway.address, approveAmount);
+
+      //check user deposit amount in gateway before deposit
+      expect(await gateway.deposits(user.address)).to.be.equal(0);
+
+      //deposit nativeToken
+      await gateway.connect(user).deposit(depositAmount);
+
+      //check user nativeToken Balance after deposit
+      expect(
+        await nativeToken.connect(user).balanceOf(user.address)
+      ).to.be.equal(mintAmount.sub(depositAmount));
+
+      //check user deposit amount in gateway after deposit
+      expect(await gateway.deposits(user.address)).to.be.equal(depositAmount);
+
+      //check gateway nativeToken balance after deposit
+      expect(await nativeToken.balanceOf(gateway.address)).to.be.equal(
+        depositAmount
+      );
+
+      await gateway.connect(user).deposit(depositAmount);
+
+      expect(await gateway.deposits(user.address)).to.be.equal(
+        depositAmount.add(depositAmount)
+      );
+
+      //check gateway nativeToken balance after deposit
+      expect(await nativeToken.balanceOf(gateway.address)).to.be.equal(
+        depositAmount.add(depositAmount)
+      );
     });
 
     it("should not allow users to deposit native tokens if not approved", async function () {
       const depositAmount = ethers.utils.parseUnits("10", 18);
+      expect(await nativeToken.connect(user).balanceOf(user.address)).equal(0);
       nativeToken.connect(user).mint(user.address, depositAmount);
-      await expect(gateway.connect(user).deposit(depositAmount)).to.be.reverted;
+      expect(await nativeToken.connect(user).balanceOf(user.address)).equal(
+        depositAmount
+      );
+      expect(await nativeToken.connect(user).balanceOf(gateway.address)).equal(
+        0
+      );
+
+      await expect(
+        gateway.connect(user).deposit(depositAmount)
+      ).to.be.revertedWithCustomError(
+        nativeToken,
+        "ERC20InsufficientAllowance"
+      );
+
+      expect(
+        await nativeToken.connect(user).balanceOf(user.address)
+      ).to.be.equal(depositAmount);
+
+      expect(await gateway.connect(user).deposits(user.address)).to.be.equal(0);
+
+      expect(
+        await nativeToken.connect(user).balanceOf(gateway.address)
+      ).to.be.equal(0);
     });
 
-    it("should not allow users to deposit native tokens with InsufficientAllowance", async function () {
+    it("should not allow users to deposit native tokens with Insufficient balance", async function () {
       const depositAmount = ethers.utils.parseUnits("10", 18);
       await nativeToken.connect(user).approve(gateway.address, depositAmount);
-      await expect(gateway.connect(user).deposit(depositAmount)).to.be.reverted;
+      expect(await nativeToken.balanceOf(user.address)).to.be.equal(0);
+
+      await expect(
+        gateway.connect(user).deposit(depositAmount)
+      ).to.be.revertedWithCustomError(nativeToken, "ERC20InsufficientBalance");
+
+      expect(await gateway.connect(user).deposits(user.address)).to.be.equal(0);
     });
 
     it("should revert if deposit amount is 0", async function () {
-      await expect(gateway.deposit(0)).to.be.revertedWith(
+      await expect(gateway.connect(user).deposit(0)).to.be.revertedWith(
         "Gateway: TOTAL_DEPOSIT_MUST_BE_GREATER_THAN_0"
       );
     });
   });
 
   describe("Withdraw", function () {
+    const depositAmount = ethers.utils.parseUnits("10", 18);
     beforeEach(async function () {
-      const depositAmount = ethers.utils.parseUnits("10", 18);
+      const MINTER_ROLE = await mbToken.MINTER_ROLE();
       await nativeToken.connect(user).mint(user.address, depositAmount);
       await nativeToken.connect(user).approve(gateway.address, depositAmount);
+      await gateway.connect(user).connect(user).deposit(depositAmount);
+      await mbToken.connect(owner).grantRole(MINTER_ROLE, owner.address);
+      await mbToken.connect(owner).setGateway(gateway.address);
     });
 
-    it("should allow users to withdraw native and mb tokens", async function () {
+    it("should allow users to withdraw native tokens", async function () {
       const withdrawNativeAmount = ethers.utils.parseUnits("5", 18);
       const withdrawMBTokenAmount = ethers.utils.parseUnits("0");
-      const depositAmount = ethers.utils.parseUnits("10", 18);
-      await gateway.connect(user).deposit(depositAmount);
-      expect(await gateway.deposits(user.address)).to.equal(depositAmount);
-      const gatewayBalance = await nativeToken.balanceOf(gateway.address);
-      await expect(gatewayBalance).to.equal(depositAmount);
 
-      await expect(
-        gateway
-          .connect(user)
-          .withdraw(withdrawNativeAmount, withdrawMBTokenAmount)
-      ).not.to.be.reverted;
+      expect(await nativeToken.balanceOf(user.address)).to.be.equal("0");
+      expect(await nativeToken.balanceOf(gateway.address)).to.be.equal(
+        depositAmount
+      );
+      expect(await gateway.deposits(user.address)).to.be.equal(depositAmount);
 
-      expect(await gateway.deposits(user.address)).to.equal(
-        ethers.utils.parseUnits("5", 18)
+      await gateway
+        .connect(user)
+        .withdraw(withdrawNativeAmount, withdrawMBTokenAmount);
+
+      expect(await gateway.deposits(user.address)).to.be.equal(
+        depositAmount.sub(withdrawNativeAmount)
       );
 
-      expect(await nativeToken.balanceOf(user.address)).to.equal(
-        ethers.utils.parseUnits("5", 18)
+      expect(await nativeToken.balanceOf(user.address)).to.be.equal(
+        withdrawNativeAmount
       );
 
-      expect(await nativeToken.balanceOf(gateway.address)).to.equal(
-        ethers.utils.parseUnits("5", 18)
+      expect(await nativeToken.balanceOf(gateway.address)).to.be.equal(
+        depositAmount.sub(withdrawNativeAmount)
+      );
+    });
+
+    it("should allow user to withdraw mb tokens", async function () {
+      const swapAmount = ethers.utils.parseUnits("4", 18);
+      const mintAmount = ethers.utils.parseUnits("10", 18);
+      const mbTokenWithdrawAmount = ethers.utils.parseUnits("2", 18);
+      const nativeTokenWithdrawAmount = ethers.utils.parseUnits("3", 18);
+
+      expect(await nativeToken.balanceOf(gateway.address)).to.be.equal(
+        depositAmount
+      );
+
+      expect(await mbToken.balanceOf(gateway.address)).to.be.equal(0);
+
+      await mbToken.connect(owner).mint(gateway.address, mintAmount);
+      expect(await mbToken.balanceOf(gateway.address)).to.be.equal(mintAmount);
+
+      expect(await nativeToken.balanceOf(user.address)).to.be.equal(0);
+
+      await nativeToken.connect(user).mint(user.address, mintAmount);
+      expect(await nativeToken.balanceOf(user.address)).to.be.equal(mintAmount);
+
+      await nativeToken.connect(user).approve(gateway.address, swapAmount);
+
+      //Swap
+      await gateway.connect(user).swapToMBToken(swapAmount);
+
+      expect(await mbToken.balanceOf(user.address)).to.be.equal(swapAmount);
+
+      expect(await mbToken.balanceOf(gateway.address)).to.be.equal(
+        mintAmount.sub(swapAmount)
+      );
+
+      expect(await nativeToken.balanceOf(user.address)).to.be.equal(
+        mintAmount.sub(swapAmount)
+      );
+
+      expect(await nativeToken.balanceOf(gateway.address)).to.be.equal(
+        depositAmount.add(swapAmount)
+      );
+
+      expect(await gateway.deposits(user.address)).to.be.equal(depositAmount);
+
+      //Withdraw
+      await gateway
+        .connect(user)
+        .withdraw(nativeTokenWithdrawAmount, mbTokenWithdrawAmount);
+
+      expect(await nativeToken.balanceOf(gateway.address)).to.be.equal(
+        depositAmount.add(swapAmount).sub(nativeTokenWithdrawAmount)
+      );
+
+      expect(await mbToken.balanceOf(gateway.address)).to.be.equal(
+        mintAmount.sub(swapAmount).sub(mbTokenWithdrawAmount)
+      );
+
+      expect(await nativeToken.balanceOf(user.address)).to.be.equal(
+        mintAmount.sub(swapAmount).add(nativeTokenWithdrawAmount)
+      );
+
+      expect(await mbToken.balanceOf(user.address)).to.be.equal(
+        swapAmount.add(mbTokenWithdrawAmount)
+      );
+
+      expect(await gateway.deposits(user.address)).to.be.equal(
+        depositAmount.sub(nativeTokenWithdrawAmount).sub(mbTokenWithdrawAmount)
       );
     });
 
@@ -138,69 +311,167 @@ describe("Gateway", function () {
 
     it("should revert if user has insufficient balance", async function () {
       await expect(
-        gateway.withdraw(ethers.utils.parseUnits("20", 18), 0)
+        gateway.connect(user).withdraw(ethers.utils.parseUnits("20", 18), 0)
       ).to.be.revertedWith("Gateway: INSUFFICIENT_USER_BALANCE");
     });
   });
 
   describe("Swaps", function () {
+    const depositAmount = ethers.utils.parseUnits("10", 18);
     beforeEach(async function () {
       const MINTER_ROLE = await mbToken.MINTER_ROLE();
       await mbToken.connect(owner).grantRole(MINTER_ROLE, owner.address);
       await mbToken.connect(owner).setGateway(gateway.address);
-      const depositAmount = ethers.utils.parseUnits("10", 18);
       await nativeToken.connect(user).mint(user.address, depositAmount);
       await nativeToken.connect(user).approve(gateway.address, depositAmount);
       await gateway.connect(user).deposit(depositAmount);
-      expect(await gateway.deposits(user.address)).to.equal(depositAmount);
     });
 
     it("should allow users to swap MBToken tokens to native", async function () {
       const mintAmount = ethers.utils.parseUnits("10", 18);
       const swapAmount = ethers.utils.parseUnits("4", 18);
-      await mbToken.mint(user.address, mintAmount);
-      const initMbTokenBalance = await mbToken.balanceOf(user.address);
+
+      expect(await gateway.deposits(user.address)).to.be.equal(depositAmount);
+      expect(await mbToken.balanceOf(user.address)).to.be.equal(0);
+
+      await mbToken.connect(owner).mint(user.address, mintAmount);
+      expect(await mbToken.balanceOf(user.address)).to.be.equal(mintAmount);
+      expect(await mbToken.balanceOf(gateway.address)).to.be.equal(0);
+
       await mbToken.connect(user).approve(gateway.address, swapAmount);
+
+      expect(await nativeToken.balanceOf(user.address)).to.be.equal(0);
+
       await gateway.connect(user).swapToNative(swapAmount);
 
-      expect(await mbToken.connect(user).balanceOf(user.address)).to.be.eq(
-        initMbTokenBalance.sub(swapAmount)
+      expect(await nativeToken.balanceOf(user.address)).to.be.equal(swapAmount);
+      expect(await nativeToken.balanceOf(gateway.address)).to.be.equal(
+        depositAmount.sub(swapAmount)
       );
-      expect(await mbToken.balanceOf(gateway.address)).to.be.eq(swapAmount);
 
-      expect(await nativeToken.connect(user).balanceOf(user.address)).to.be.eq(
+      expect(await gateway.deposits(user.address)).to.be.equal(depositAmount);
+
+      expect(await mbToken.balanceOf(gateway.address)).to.be.equal(swapAmount);
+      expect(await mbToken.balanceOf(user.address)).to.be.equal(
+        mintAmount.sub(swapAmount)
+      );
+    });
+
+    it("should allow users to swapToNativeTo", async function () {
+      const mintAmount = ethers.utils.parseUnits("10", 18);
+      const swapAmount = ethers.utils.parseUnits("4", 18);
+
+      expect(await gateway.deposits(user.address)).to.be.equal(depositAmount);
+      expect(await mbToken.balanceOf(user.address)).to.be.equal(0);
+
+      await mbToken.connect(owner).mint(user.address, mintAmount);
+      expect(await mbToken.balanceOf(user.address)).to.be.equal(mintAmount);
+      expect(await mbToken.balanceOf(user1.address)).to.be.equal(0);
+      expect(await mbToken.balanceOf(gateway.address)).to.be.equal(0);
+
+      await mbToken.connect(user).approve(gateway.address, swapAmount);
+
+      expect(await nativeToken.balanceOf(user.address)).to.be.equal(0);
+      expect(await nativeToken.balanceOf(user1.address)).to.be.equal(0);
+
+      await gateway.connect(user).swapToNativeTo(swapAmount, user1.address);
+
+      expect(await nativeToken.balanceOf(user.address)).to.be.equal(0);
+      expect(await nativeToken.balanceOf(user1.address)).to.be.equal(
         swapAmount
       );
-
-      expect(await nativeToken.balanceOf(gateway.address)).to.be.eq(
-        initMbTokenBalance.sub(swapAmount)
+      expect(await nativeToken.balanceOf(gateway.address)).to.be.equal(
+        depositAmount.sub(swapAmount)
       );
+
+      expect(await gateway.deposits(user.address)).to.be.equal(depositAmount);
+      expect(await gateway.deposits(user1.address)).to.be.equal(0);
+
+      expect(await mbToken.balanceOf(user.address)).to.be.equal(
+        mintAmount.sub(swapAmount)
+      );
+      expect(await mbToken.balanceOf(user1.address)).to.be.equal(0);
+      expect(await mbToken.balanceOf(gateway.address)).to.be.equal(swapAmount);
     });
 
     it("should allow users to swap native tokens to MBToken", async function () {
       const swapAmount = ethers.utils.parseUnits("4", 18);
       const mintAmount = ethers.utils.parseUnits("10", 18);
-      const initGateWayBalance = await nativeToken.balanceOf(gateway.address);
-      await mbToken.mint(gateway.address, mintAmount);
-      await nativeToken.mint(user.address, mintAmount);
+
+      expect(await nativeToken.balanceOf(gateway.address)).to.be.equal(
+        depositAmount
+      );
+
+      expect(await mbToken.balanceOf(gateway.address)).to.be.equal(0);
+
+      await mbToken.connect(owner).mint(gateway.address, mintAmount);
+      expect(await mbToken.balanceOf(gateway.address)).to.be.equal(mintAmount);
+
+      expect(await nativeToken.balanceOf(user.address)).to.be.equal(0);
+
+      await nativeToken.connect(user).mint(user.address, mintAmount);
+      expect(await nativeToken.balanceOf(user.address)).to.be.equal(mintAmount);
+
       await nativeToken.connect(user).approve(gateway.address, swapAmount);
       await gateway.connect(user).swapToMBToken(swapAmount);
 
-      expect(await mbToken.connect(user).balanceOf(user.address)).to.be.eq(
-        swapAmount
-      );
+      expect(await mbToken.balanceOf(user.address)).to.be.equal(swapAmount);
 
-      expect(await mbToken.balanceOf(gateway.address)).to.be.eq(
+      expect(await mbToken.balanceOf(gateway.address)).to.be.equal(
         mintAmount.sub(swapAmount)
       );
 
-      expect(await nativeToken.connect(user).balanceOf(user.address)).to.be.eq(
+      expect(await nativeToken.balanceOf(user.address)).to.be.equal(
         mintAmount.sub(swapAmount)
       );
 
-      expect(await nativeToken.balanceOf(gateway.address)).to.be.eq(
-        initGateWayBalance.add(swapAmount)
+      expect(await nativeToken.balanceOf(gateway.address)).to.be.equal(
+        depositAmount.add(swapAmount)
       );
+
+      expect(await gateway.deposits(user.address)).to.be.equal(depositAmount);
+    });
+
+    it("should allow users to swapToMBTokenTo", async function () {
+      const swapAmount = ethers.utils.parseUnits("4", 18);
+      const mintAmount = ethers.utils.parseUnits("10", 18);
+
+      expect(await nativeToken.balanceOf(gateway.address)).to.be.equal(
+        depositAmount
+      );
+
+      expect(await mbToken.balanceOf(gateway.address)).to.be.equal(0);
+
+      await mbToken.connect(owner).mint(gateway.address, mintAmount);
+
+      expect(await mbToken.balanceOf(gateway.address)).to.be.equal(mintAmount);
+      expect(await nativeToken.balanceOf(user.address)).to.be.equal(0);
+
+      await nativeToken.connect(user).mint(user.address, mintAmount);
+      expect(await nativeToken.balanceOf(user.address)).to.be.equal(mintAmount);
+
+      await nativeToken.connect(user).approve(gateway.address, swapAmount);
+
+      expect(await mbToken.balanceOf(user.address)).to.be.equal(0);
+      expect(await mbToken.balanceOf(user1.address)).to.be.equal(0);
+
+      await gateway.connect(user).swapToMBTokenTo(swapAmount, user1.address);
+
+      expect(await mbToken.balanceOf(user.address)).to.be.equal(0);
+      expect(await mbToken.balanceOf(user1.address)).to.be.equal(swapAmount);
+      expect(await mbToken.balanceOf(gateway.address)).to.be.equal(
+        mintAmount.sub(swapAmount)
+      );
+
+      expect(await nativeToken.balanceOf(user1.address)).to.be.equal(0);
+      expect(await nativeToken.balanceOf(user.address)).to.be.equal(
+        mintAmount.sub(swapAmount)
+      );
+      expect(await nativeToken.balanceOf(gateway.address)).to.be.equal(
+        depositAmount.add(swapAmount)
+      );
+
+      expect(await gateway.deposits(user.address)).to.be.equal(depositAmount);
     });
 
     it("swapToNative should revert if swap amount is 0", async function () {
@@ -225,55 +496,71 @@ describe("Gateway", function () {
     });
   });
 
-  describe("Simultaneous Actions", function () {
-    it("should handle simultaneous deposits and withdrawals", async function () {
-      const depositAmount = ethers.utils.parseUnits("10", 18);
-      const withdrawAmount = ethers.utils.parseUnits("5", 18);
-      await nativeToken.connect(user).mint(user.address, depositAmount);
-      await nativeToken.connect(user).approve(gateway.address, depositAmount);
-      await gateway.connect(user).deposit(depositAmount);
-      await gateway.connect(user).withdraw(withdrawAmount, 0);
-      expect(await gateway.deposits(user.address)).to.equal(
-        depositAmount.sub(withdrawAmount)
-      );
-    });
-  });
-
   describe("Pausable functionality", function () {
+    beforeEach(async function () {
+      const PAUSER_ROLE = await gateway.PAUSER_ROLE();
+      await gateway.connect(owner).grantRole(PAUSER_ROLE, pauser.address);
+    });
     it("should not allow a user to pause the contract", async function () {
-      await expect(gateway.pause()).to.be.reverted;
+      await expect(gateway.connect(user).pause()).to.be.revertedWithCustomError(
+        gateway,
+        "AccessControlUnauthorizedAccount"
+      );
     });
 
     it("should allow the pauser to pause the contract", async function () {
-      const PAUSER_ROLE = await gateway.PAUSER_ROLE();
-      await gateway.grantRole(PAUSER_ROLE, owner.address);
-      await gateway.pause();
-
-      expect(await gateway.paused()).to.equal(true);
+      await gateway.connect(pauser).pause();
+      expect(await gateway.paused()).to.be.equal(true);
     });
 
     it("should allow the pauser to unpause the contract", async function () {
-      const PAUSER_ROLE = await gateway.PAUSER_ROLE();
-      await gateway.grantRole(PAUSER_ROLE, owner.address);
-      await gateway.pause();
-      await gateway.unpause();
+      await gateway.connect(pauser).pause();
+      expect(await gateway.connect(pauser).paused()).to.be.equal(true);
+      await gateway.connect(pauser).unpause();
+      expect(await gateway.paused()).to.be.equal(false);
+    });
 
-      expect(await gateway.paused()).to.equal(false);
+    it("should not allow the user to unpause the contract", async function () {
+      await gateway.connect(pauser).pause();
+      expect(await gateway.paused()).to.be.equal(true);
+      await expect(
+        gateway.connect(user).unpause()
+      ).to.be.revertedWithCustomError(
+        gateway,
+        "AccessControlUnauthorizedAccount"
+      );
+      expect(await gateway.paused()).to.be.equal(true);
     });
 
     it("should revert when trying to perform an action while paused", async function () {
-      const PAUSER_ROLE = await gateway.PAUSER_ROLE();
-      const withdrawNativeAmount = ethers.utils.parseUnits("5", 18);
-      const withdrawMBTokenAmount = ethers.utils.parseUnits("5", 18);
-      await gateway.grantRole(PAUSER_ROLE, owner.address);
-      await gateway.pause();
+      const amount = ethers.utils.parseUnits("5", 18);
+      const amount1 = ethers.utils.parseUnits("5", 18);
 
-      await expect(gateway.deposit(ethers.utils.parseUnits("10", 18))).to.be
-        .reverted;
+      await gateway.connect(pauser).pause();
 
       await expect(
-        gateway.withdraw(withdrawNativeAmount, withdrawMBTokenAmount)
-      ).to.be.reverted;
+        gateway.connect(user).swapToMBToken(amount)
+      ).to.be.revertedWithCustomError(gateway, "EnforcedPause");
+
+      await expect(
+        gateway.connect(user).swapToNative(amount)
+      ).to.be.revertedWithCustomError(gateway, "EnforcedPause");
+
+      await expect(
+        gateway.connect(user).swapToNativeTo(amount, user.address)
+      ).to.be.revertedWithCustomError(gateway, "EnforcedPause");
+
+      await expect(
+        gateway.connect(user).swapToMBTokenTo(amount, user.address)
+      ).to.be.revertedWithCustomError(gateway, "EnforcedPause");
+
+      await expect(
+        gateway.connect(user).deposit(amount)
+      ).to.to.be.revertedWithCustomError(gateway, "EnforcedPause");
+
+      await expect(
+        gateway.connect(user).withdraw(amount, amount1)
+      ).to.be.revertedWithCustomError(gateway, "EnforcedPause");
     });
   });
 });
