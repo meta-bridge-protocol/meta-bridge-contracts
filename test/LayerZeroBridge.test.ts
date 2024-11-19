@@ -15,6 +15,7 @@ import {
 import { Address } from "hardhat-deploy/types";
 const ILzEndpointV2 = require("../artifacts/contracts/interfaces/ILzEndpointV2.sol/ILzEndpointV2.json");
 const ONE = ethers.utils.parseUnits("1", 18);
+
 describe("LayerZeroBridge", () => {
   let bridge: LayerZeroBridge;
   let lzEndpoint: MockContract;
@@ -108,7 +109,7 @@ describe("LayerZeroBridge", () => {
         true,
         false
       );
-});
+  });
 
   describe("Token operations", () => {
     it("should add token successfully", async () => {
@@ -118,7 +119,6 @@ describe("LayerZeroBridge", () => {
     });
 
     it("should remove token successfully", async () => {
-
       expect((await bridge.tokens(nativeToken.address)).mbToken).to.deep.eq(
         bridgeToken.address
       );
@@ -140,7 +140,6 @@ describe("LayerZeroBridge", () => {
     });
 
     it("should update token successfully", async () => {
-
       expect((await bridge.tokens(nativeToken.address)).mbToken).to.deep.eq(
         bridgeToken.address
       );
@@ -276,14 +275,6 @@ describe("LayerZeroBridge", () => {
       const nativeFee = {
         lzTokenFee: BigInt(0),
         nativeFee: ethers.utils.parseUnits("0.000001", 18),
-      };
-
-      const messagingParams = {
-        dstEid: 30106,
-        receiver: ethers.utils.hexZeroPad(user.address, 32),
-        message: ethers.utils.hexlify(ethers.utils.toUtf8Bytes("YourMessage")),
-        options: "0x000301001101000000000000000000000000000f4240",
-        payInLzToken: false,
       };
 
       await lzEndpoint.mock.send.returns({

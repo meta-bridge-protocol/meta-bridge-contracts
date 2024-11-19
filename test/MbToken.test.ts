@@ -7,7 +7,7 @@ import {
 } from "@ethereum-waffle/mock-contract";
 import { Gateway, MBToken, TestToken } from "../typechain-types";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { Address } from "hardhat-deploy/types";
+
 const ILzEndpointV2 = require("../artifacts/contracts/interfaces/ILzEndpointV2.sol/ILzEndpointV2.json");
 
 describe("MBToken Contract", function () {

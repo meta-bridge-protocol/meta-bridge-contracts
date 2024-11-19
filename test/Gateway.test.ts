@@ -9,7 +9,7 @@ import {
 import { describe, it, beforeEach } from "mocha";
 import { Address } from "hardhat-deploy/types";
 import { MBToken, TestToken, Gateway } from "../typechain-types";
-import exp from "constants";
+
 const ILzEndpointV2 = require("../artifacts/contracts/interfaces/ILzEndpointV2.sol/ILzEndpointV2.json");
 
 describe("Gateway", function () {
