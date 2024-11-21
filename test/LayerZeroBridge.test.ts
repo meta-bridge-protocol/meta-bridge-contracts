@@ -66,20 +66,6 @@ describe("LayerZeroBridge", () => {
     );
   };
 
-  const deployBurnableToken = async () => {
-    const requiredDVNs = [admin.address];
-    lzSendLib = admin.address;
-    lzReceiveLib = admin.address;
-    const mbTokenFactory = await ethers.getContractFactory("MBToken");
-
-    burnableToken = await mbTokenFactory.deploy(
-      "MyToken",
-      "MTK",
-      lzEndpoint.address,
-      lzSendLib
-    );
-  };
-
   const deployGateWay = async () => {
     const Gateway = await ethers.getContractFactory("Gateway");
     gateway = await Gateway.deploy(
