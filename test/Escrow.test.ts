@@ -94,7 +94,7 @@ describe("Escrow", () => {
     );
 
     await nativeToken.connect(owner).mint(escrow.address, escrowMintAmount);
-    await nativeToken.connect(owner).approve(gateway.address, escrowMintAmount);
+    // await nativeToken.connect(owner).approve(gateway.address, escrowMintAmount);
 
     expect(await nativeToken.balanceOf(escrow.address)).to.be.equal(
       escrowMintAmount

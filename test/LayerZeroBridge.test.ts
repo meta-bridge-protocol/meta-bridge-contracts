@@ -9,12 +9,12 @@ import {
 import {
   Gateway,
   LayerZeroBridge,
+  Escrow,
   MBToken,
   TestToken,
 } from "../typechain-types";
 import { Address } from "hardhat-deploy/types";
 const ILzEndpointV2 = require("../artifacts/contracts/interfaces/ILzEndpointV2.sol/ILzEndpointV2.json");
-const ONE = ethers.utils.parseUnits("1", 18);
 
 describe("LayerZeroBridge", () => {
   let bridge: LayerZeroBridge;
@@ -25,15 +25,31 @@ describe("LayerZeroBridge", () => {
   let nativeToken: TestToken;
   let treasury: SignerWithAddress;
   let treasury1: SignerWithAddress;
+  let escrow: Escrow;
+  let escrowDepositor: SignerWithAddress;
+  let burnableToken: MBToken;
   let admin: SignerWithAddress,
     tokenAdder: SignerWithAddress,
     user: SignerWithAddress,
     testAddress: SignerWithAddress,
     lzSendLib: Address,
     lzReceiveLib: Address;
+
+  const initialThreshold = ethers.utils.parseEther("100");
+
+  const dstEid = 30106;
+  const extraOption = "0x000301001101000000000000000000000000000f4240";
+
   before(async () => {
-    [admin, tokenAdder, user, treasury, treasury1, testAddress] =
-      await ethers.getSigners();
+    [
+      admin,
+      tokenAdder,
+      user,
+      treasury,
+      treasury1,
+      testAddress,
+      escrowDepositor,
+    ] = await ethers.getSigners();
   });
 
   const deployBridgeToken = async () => {
@@ -43,6 +59,20 @@ describe("LayerZeroBridge", () => {
     const mbTokenFactory = await ethers.getContractFactory("MBToken");
 
     bridgeToken = await mbTokenFactory.deploy(
+      "MyToken",
+      "MTK",
+      lzEndpoint.address,
+      lzSendLib
+    );
+  };
+
+  const deployBurnableToken = async () => {
+    const requiredDVNs = [admin.address];
+    lzSendLib = admin.address;
+    lzReceiveLib = admin.address;
+    const mbTokenFactory = await ethers.getContractFactory("MBToken");
+
+    burnableToken = await mbTokenFactory.deploy(
       "MyToken",
       "MTK",
       lzEndpoint.address,
@@ -74,6 +104,16 @@ describe("LayerZeroBridge", () => {
     await gateway1.deployed();
   };
 
+  const deployEscrow = async () => {
+    const EscrowFactory = await ethers.getContractFactory("Escrow");
+    escrow = await EscrowFactory.deploy();
+    await escrow.initialize(
+      gateway.address,
+      treasury.address,
+      initialThreshold
+    );
+  };
+
   beforeEach(async () => {
     lzEndpoint = await deployMockContract(admin, ILzEndpointV2.abi);
     await lzEndpoint.mock.setDelegate.returns();
@@ -89,9 +129,10 @@ describe("LayerZeroBridge", () => {
     const TestTokenFactory = await ethers.getContractFactory("TestToken");
     nativeToken = await TestTokenFactory.deploy("Native Token", "rToken");
     await nativeToken.deployed();
-    await nativeToken.mint(user.address, 1000);
 
     await deployGateWay();
+
+    await deployEscrow();
 
     const BridgeFactory = await ethers.getContractFactory("LayerZeroBridge");
     bridge = await BridgeFactory.connect(admin).deploy(lzEndpoint.address);
@@ -104,7 +145,7 @@ describe("LayerZeroBridge", () => {
       .addToken(
         nativeToken.address,
         bridgeToken.address,
-        treasury.address,
+        escrow.address,
         gateway.address,
         true,
         false
@@ -116,30 +157,58 @@ describe("LayerZeroBridge", () => {
       expect((await bridge.tokens(nativeToken.address)).mbToken).to.deep.eq(
         bridgeToken.address
       );
+      expect((await bridge.tokens(nativeToken.address)).gateway).to.deep.eq(
+        gateway.address
+      );
+      expect((await bridge.tokens(nativeToken.address)).treasury).to.deep.eq(
+        escrow.address
+      );
     });
 
-    it("should remove token successfully", async () => {
+    it("should revert if non-tokenAdder add token", async () => {
+      await expect(
+        bridge
+          .connect(user)
+          .addToken(
+            nativeToken.address,
+            bridgeToken.address,
+            escrow.address,
+            gateway.address,
+            true,
+            false
+          )
+      ).to.revertedWithCustomError(bridge, "AccessControlUnauthorizedAccount");
+    });
+
+    it("should not remove token with invalid token address", async () => {
       expect((await bridge.tokens(nativeToken.address)).mbToken).to.deep.eq(
         bridgeToken.address
       );
-
       await expect(
         bridge.connect(tokenAdder).removeToken(testAddress.address)
       ).to.be.revertedWith("Invalid token");
+    });
+
+    it("non token-adder should not remove token", async () => {
+      expect((await bridge.tokens(nativeToken.address)).mbToken);
 
       await expect(
-        bridge.connect(user.address).removeToken(nativeToken.address)
-      ).to.be.rejected;
+        bridge.connect(user).removeToken(nativeToken.address)
+      ).to.be.revertedWithCustomError(
+        escrow,
+        "AccessControlUnauthorizedAccount"
+      );
+    });
 
-      await expect(bridge.connect(tokenAdder).removeToken(nativeToken.address))
-        .not.to.be.reverted;
+    it("TokenAdder should remove token successfully", async () => {
+      await bridge.connect(tokenAdder).removeToken(nativeToken.address);
 
       expect((await bridge.tokens(nativeToken.address)).mbToken).to.deep.eq(
         ethers.constants.AddressZero
       );
     });
 
-    it("should update token successfully", async () => {
+    it("tokenAdder should update token successfully", async () => {
       expect((await bridge.tokens(nativeToken.address)).mbToken).to.deep.eq(
         bridgeToken.address
       );
@@ -158,7 +227,15 @@ describe("LayerZeroBridge", () => {
       expect((await bridge.tokens(nativeToken.address)).mbToken).to.deep.eq(
         bridgeToken.address
       );
+      expect((await bridge.tokens(nativeToken.address)).gateway).to.deep.eq(
+        gateway1.address
+      );
+      expect((await bridge.tokens(nativeToken.address)).treasury).to.deep.eq(
+        treasury1.address
+      );
+    });
 
+    it("non-tokenAdder should not update token successfully", async () => {
       await expect(
         bridge
           .connect(user)
@@ -170,8 +247,13 @@ describe("LayerZeroBridge", () => {
             true,
             false
           )
-      ).to.be.reverted;
+      ).to.be.revertedWithCustomError(
+        bridge,
+        "AccessControlUnauthorizedAccount"
+      );
+    });
 
+    it("should revert if native token is invalid", async () => {
       await expect(
         bridge
           .connect(tokenAdder)
@@ -185,72 +267,42 @@ describe("LayerZeroBridge", () => {
           )
       ).to.be.revertedWith("Invalid token");
     });
+  });
 
+  describe("QuoteSend", () => {
     it("should quoteSend successfully", async () => {
       const amount = ethers.utils.parseUnits("1", 18);
-      const dstEid = 30106;
-      const extraOption = "0x000301001101000000000000000000000000000f4240";
 
-      const fee = await expect(
-        bridge.quoteSend(
-          nativeToken.address,
-          user.address,
-          dstEid,
-          amount,
-          amount,
-          extraOption,
-          false
-        )
-      ).not.to.be.reverted;
+      await bridge.quoteSend(
+        nativeToken.address,
+        user.address,
+        dstEid,
+        amount,
+        amount,
+        extraOption,
+        false
+      );
     });
-
-    // it("should not revert in small numbers quoteSend", async () => {
-    //   const amount = ethers.utils.parseUnits("0.0000001", 18);
-
-    //   const dstEid = 30106;
-    //   const extraOption = "0x000301001101000000000000000000000000000f4240";
-
-    //   await addToken();
-
-    //   const fee = await expect(
-    //     bridge.quoteSend(
-    //       nativeToken.address,
-    //       user.address,
-    //       dstEid,
-    //       amount,
-    //       amount,
-    //       extraOption,
-    //       false
-    //     )
-    //   ).not.to.be.reverted;
-    // });
 
     it("should not revert in large numbers quoteSend", async () => {
       const amount = ethers.utils.parseUnits("10000000000000000", 18);
 
-      const dstEid = 30106;
-      const extraOption = "0x000301001101000000000000000000000000000f4240";
-
-      const fee = await expect(
-        bridge.quoteSend(
-          nativeToken.address,
-          user.address,
-          dstEid,
-          amount,
-          amount,
-          extraOption,
-          false
-        )
-      ).not.to.be.reverted;
+      await bridge.quoteSend(
+        nativeToken.address,
+        user.address,
+        dstEid,
+        amount,
+        amount,
+        extraOption,
+        false
+      );
     });
 
     it("should revert quoteSend in different amount", async () => {
       const amount = ethers.utils.parseUnits("1", 18);
       const amount2 = ethers.utils.parseUnits("2", 18);
-      const dstEid = 30106;
-      const extraOption = "0x000301001101000000000000000000000000000f4240";
 
-      const fee = await expect(
+      await expect(
         bridge.quoteSend(
           nativeToken.address,
           user.address,
@@ -263,14 +315,62 @@ describe("LayerZeroBridge", () => {
       ).to.be.reverted;
     });
 
-    it("should send tokens successfully", async () => {
-      const amount = ethers.utils.parseUnits("1", 18);
-      const dstEid = 30106;
-      const extraOption = "0x000301001101000000000000000000000000000f4240";
+    // it("should not revert in small numbers quoteSend", async () => {
+    //   const amount = ethers.utils.parseUnits("0.0000001", 18);
+    //   const fee = await expect;
+    //   bridge.quoteSend(
+    //     nativeToken.address,
+    //     user.address,
+    //     dstEid,
+    //     amount,
+    //     amount,
+    //     extraOption,
+    //     false
+    //   );
+    // });
+  });
 
-      await nativeToken.mint(user.address, ethers.utils.parseUnits("5", 18));
-      await nativeToken.connect(user).approve(bridge.address, amount);
-      const MINTER_ROLE = await bridgeToken.MINTER_ROLE();
+  describe("Bridge", () => {
+    it("should successfully send token", async () => {
+      const escrowMintAmount = ethers.utils.parseEther("100");
+      const BridgeAmount = ethers.utils.parseEther("20");
+      expect(await nativeToken.balanceOf(escrow.address)).to.be.equal(0);
+
+      //mint nativeToken for escrow
+      await nativeToken.connect(admin).mint(escrow.address, escrowMintAmount);
+      expect(await nativeToken.balanceOf(escrow.address)).to.be.equal(
+        escrowMintAmount
+      );
+
+      await escrow
+        .connect(admin)
+        .grantRole(escrow.DEPOSITOR_ROLE(), escrowDepositor.address);
+
+      //Deposit to gateway
+      await escrow.connect(escrowDepositor).depositToGateway();
+      expect(await nativeToken.balanceOf(escrow.address)).to.be.equal(0);
+      expect(await nativeToken.balanceOf(gateway.address)).to.be.equal(
+        escrowMintAmount
+      );
+
+      expect(await gateway.deposits(escrow.address)).to.be.equal(
+        escrowMintAmount
+      );
+
+      const UserNativeTokenMintAmount = ethers.utils.parseEther("50");
+
+      expect(await nativeToken.balanceOf(user.address)).to.be.equal(0);
+
+      //mint native token for user
+      await nativeToken
+        .connect(user)
+        .mint(user.address, UserNativeTokenMintAmount);
+
+      expect(await nativeToken.balanceOf(user.address)).to.be.equal(
+        UserNativeTokenMintAmount
+      );
+
+      await nativeToken.connect(user).approve(bridge.address, BridgeAmount);
 
       const nativeFee = {
         lzTokenFee: BigInt(0),
@@ -286,19 +386,53 @@ describe("LayerZeroBridge", () => {
         },
       });
 
+      const MINTER_ROLE = await bridgeToken.MINTER_ROLE();
       await bridgeToken.grantRole(MINTER_ROLE, bridge.address);
+
+      expect(await nativeToken.balanceOf(escrow.address)).to.be.equal(0);
+
+      expect(await gateway.deposits(escrow.address)).to.be.equal(
+        escrowMintAmount
+      );
+
+      expect(await gateway.deposits(user.address)).to.be.equal(0);
+
+      expect(await nativeToken.balanceOf(user.address)).to.be.equal(
+        UserNativeTokenMintAmount
+      );
 
       await bridge
         .connect(user)
         .send(
           nativeToken.address,
           dstEid,
-          amount,
-          amount,
+          BridgeAmount,
+          BridgeAmount,
           extraOption,
           nativeFee,
           { value: nativeFee.nativeFee }
         );
+
+      expect(await nativeToken.balanceOf(escrow.address)).to.be.equal(
+        BridgeAmount
+      );
+
+      expect(await gateway.deposits(escrow.address)).to.be.equal(
+        escrowMintAmount
+      );
+
+      expect(await gateway.deposits(user.address)).to.be.equal(0);
+
+      expect(await nativeToken.balanceOf(user.address)).to.be.equal(
+        UserNativeTokenMintAmount.sub(BridgeAmount)
+      );
+
+      //treasury ==> escrow
+      expect(
+        await nativeToken.balanceOf(
+          (await bridge.tokens(nativeToken.address)).treasury
+        )
+      ).to.be.equal(BridgeAmount);
     });
   });
 });
