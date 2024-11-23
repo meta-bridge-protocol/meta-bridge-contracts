@@ -18,7 +18,6 @@ contract MuonBridge is AccessControl {
         address rToken;
         address mbToken;
         address treasury; // The address of escrow
-        address gateway;
         bool isMainChain;
         bool isBurnable;
     }
@@ -196,7 +195,6 @@ contract MuonBridge is AccessControl {
         address rToken,
         address mbToken,
         address treasury,
-        address gateway,
         bool isMainChain,
         bool isBurnable
     ) external onlyRole(TOKEN_ADDER_ROLE) {
@@ -207,7 +205,6 @@ contract MuonBridge is AccessControl {
             rToken,
             mbToken,
             treasury,
-            gateway,
             isMainChain,
             isBurnable
         );
