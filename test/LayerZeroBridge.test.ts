@@ -12,6 +12,7 @@ import {
   Escrow,
   MBToken,
   TestToken,
+  TestTokenBurnable,
 } from "../typechain-types";
 import { Address } from "hardhat-deploy/types";
 const ILzEndpointV2 = require("../artifacts/contracts/interfaces/ILzEndpointV2.sol/ILzEndpointV2.json");
@@ -21,13 +22,15 @@ describe("LayerZeroBridge", () => {
   let lzEndpoint: MockContract;
   let gateway: Gateway;
   let gateway1: Gateway;
+  let gateWayBurnable: Gateway;
   let bridgeToken: MBToken;
   let nativeToken: TestToken;
   let treasury: SignerWithAddress;
   let treasury1: SignerWithAddress;
   let escrow: Escrow;
+  let escrowBurnable: Escrow;
   let escrowDepositor: SignerWithAddress;
-  let burnableToken: MBToken;
+  let burnableToken: TestTokenBurnable;
   let admin: SignerWithAddress,
     tokenAdder: SignerWithAddress,
     user: SignerWithAddress,
@@ -88,6 +91,14 @@ describe("LayerZeroBridge", () => {
       bridgeToken.address
     );
     await gateway1.deployed();
+
+    gateWayBurnable = await Gateway.deploy(
+      admin.address,
+      burnableToken.address,
+      bridgeToken.address
+    );
+
+    await gateWayBurnable.deployed();
   };
 
   const deployEscrow = async () => {
@@ -95,6 +106,13 @@ describe("LayerZeroBridge", () => {
     escrow = await EscrowFactory.deploy();
     await escrow.initialize(
       gateway.address,
+      treasury.address,
+      initialThreshold
+    );
+
+    escrowBurnable = await EscrowFactory.deploy();
+    await escrowBurnable.initialize(
+      gateWayBurnable.address,
       treasury.address,
       initialThreshold
     );
@@ -116,6 +134,14 @@ describe("LayerZeroBridge", () => {
     nativeToken = await TestTokenFactory.deploy("Native Token", "rToken");
     await nativeToken.deployed();
 
+    const BurnableTokenFactory =
+      await ethers.getContractFactory("TestTokenBurnable");
+    burnableToken = await BurnableTokenFactory.deploy(
+      "Burnable Token",
+      "BToken"
+    );
+    await burnableToken.deployed();
+
     await deployGateWay();
 
     await deployEscrow();
@@ -135,6 +161,17 @@ describe("LayerZeroBridge", () => {
         gateway.address,
         true,
         false
+      );
+
+    await bridge
+      .connect(tokenAdder)
+      .addToken(
+        burnableToken.address,
+        bridgeToken.address,
+        escrowBurnable.address,
+        gateWayBurnable.address,
+        false,
+        true
       );
   });
 
@@ -419,6 +456,118 @@ describe("LayerZeroBridge", () => {
           (await bridge.tokens(nativeToken.address)).treasury
         )
       ).to.be.equal(BridgeAmount);
+    });
+
+    it("should successfully send burnable token", async () => {
+      const escrowMintAmount = ethers.utils.parseEther("100");
+      const BridgeAmount = ethers.utils.parseEther("20");
+      expect(await burnableToken.balanceOf(escrowBurnable.address)).to.be.equal(
+        0
+      );
+
+      //mint burnableToken for escrowBurnable
+      await burnableToken
+        .connect(admin)
+        .mint(escrowBurnable.address, escrowMintAmount);
+
+      expect(await burnableToken.balanceOf(escrowBurnable.address)).to.be.equal(
+        escrowMintAmount
+      );
+
+      await escrowBurnable
+        .connect(admin)
+        .grantRole(escrowBurnable.DEPOSITOR_ROLE(), escrowDepositor.address);
+
+      //Deposit to gateway
+      await escrowBurnable.connect(escrowDepositor).depositToGateway();
+      expect(await burnableToken.balanceOf(escrowBurnable.address)).to.be.equal(
+        0
+      );
+      expect(
+        await burnableToken.balanceOf(gateWayBurnable.address)
+      ).to.be.equal(escrowMintAmount);
+      expect(
+        await gateWayBurnable.deposits(escrowBurnable.address)
+      ).to.be.equal(escrowMintAmount);
+
+      const UserNativeTokenMintAmount = ethers.utils.parseEther("50");
+
+      expect(await burnableToken.balanceOf(user.address)).to.be.equal(0);
+
+      //mint native token for user
+      await burnableToken
+        .connect(user)
+        .mint(user.address, UserNativeTokenMintAmount);
+
+      expect(await burnableToken.balanceOf(user.address)).to.be.equal(
+        UserNativeTokenMintAmount
+      );
+
+      await burnableToken.connect(user).approve(bridge.address, BridgeAmount);
+
+      const nativeFee = {
+        lzTokenFee: BigInt(0),
+        nativeFee: ethers.utils.parseUnits("0.000001", 18),
+      };
+
+      await lzEndpoint.mock.send.returns({
+        guid: ethers.utils.formatBytes32String("guid"),
+        nonce: 1,
+        fee: {
+          lzTokenFee: 0,
+          nativeFee: ethers.utils.parseUnits("0.000001", 18),
+        },
+      });
+
+      const MINTER_ROLE = await bridgeToken.MINTER_ROLE();
+      await bridgeToken.grantRole(MINTER_ROLE, bridge.address);
+
+      expect(await burnableToken.balanceOf(escrowBurnable.address)).to.be.equal(
+        0
+      );
+
+      expect(
+        await gateWayBurnable.deposits(escrowBurnable.address)
+      ).to.be.equal(escrowMintAmount);
+
+      expect(await gateWayBurnable.deposits(user.address)).to.be.equal(0);
+
+      expect(await burnableToken.balanceOf(user.address)).to.be.equal(
+        UserNativeTokenMintAmount
+      );
+
+      await bridge
+        .connect(user)
+        .send(
+          burnableToken.address,
+          dstEid,
+          BridgeAmount,
+          BridgeAmount,
+          extraOption,
+          nativeFee,
+          { value: nativeFee.nativeFee }
+        );
+
+      expect(await burnableToken.balanceOf(escrowBurnable.address)).to.be.equal(
+        0
+      );
+
+      expect(await gateWayBurnable.deposits(user.address)).to.be.equal(0);
+
+      expect(
+        await gateWayBurnable.deposits(escrowBurnable.address)
+      ).to.be.equal(escrowMintAmount);
+
+      expect(await burnableToken.balanceOf(user.address)).to.be.equal(
+        UserNativeTokenMintAmount.sub(BridgeAmount)
+      );
+
+      //treasury ==> escrow
+      expect(
+        await burnableToken.balanceOf(
+          (await bridge.tokens(burnableToken.address)).treasury
+        )
+      ).to.be.equal(0);
     });
   });
 });
