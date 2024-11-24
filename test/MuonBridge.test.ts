@@ -145,6 +145,7 @@ describe("MuonBridge", () => {
         nativeToken.address,
         mbToken.address,
         treasury.address,
+        gateway.address,
         true,
         false
       );
