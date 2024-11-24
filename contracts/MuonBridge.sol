@@ -18,6 +18,7 @@ contract MuonBridge is AccessControl {
         address rToken;
         address mbToken;
         address treasury; // The address of escrow
+        address gateway;
         bool isMainChain;
         bool isBurnable;
     }
@@ -167,8 +168,8 @@ contract MuonBridge is AccessControl {
         claimedTxs[fromChain][txId] = true;
 
         IMBToken mbToken = IMBToken(tokens[tokenId].mbToken); // Mint MUON mbToken
-        IGateway gateway = IGateway(mbToken.gateway());
-        uint256 gwBalance = IERC20(gateway.nativeToken()).balanceOf(
+        IGateway gateway = IGateway(tokens[tokenId].gateway);
+        uint256 gwBalance = IERC20(tokens[tokenId].rToken).balanceOf(
             address(gateway)
         );
 
@@ -195,6 +196,7 @@ contract MuonBridge is AccessControl {
         address rToken,
         address mbToken,
         address treasury,
+        address gateway,
         bool isMainChain,
         bool isBurnable
     ) external onlyRole(TOKEN_ADDER_ROLE) {
@@ -205,6 +207,7 @@ contract MuonBridge is AccessControl {
             rToken,
             mbToken,
             treasury,
+            gateway,
             isMainChain,
             isBurnable
         );
