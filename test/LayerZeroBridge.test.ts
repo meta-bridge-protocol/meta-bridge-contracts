@@ -358,13 +358,13 @@ describe("LayerZeroBridge", () => {
       const escrowMintAmount = ethers.utils.parseEther("100");
       const BridgeAmount = ethers.utils.parseEther("20");
       expect(await nativeToken.balanceOf(escrow.address)).to.be.equal(0);
-
+      expect(await nativeToken.totalSupply()).to.be.equal(0);
       //mint nativeToken for escrow
       await nativeToken.connect(admin).mint(escrow.address, escrowMintAmount);
       expect(await nativeToken.balanceOf(escrow.address)).to.be.equal(
         escrowMintAmount
       );
-
+      expect(await nativeToken.totalSupply()).to.be.equal(escrowMintAmount);
       await escrow
         .connect(admin)
         .grantRole(escrow.DEPOSITOR_ROLE(), escrowDepositor.address);
@@ -375,7 +375,7 @@ describe("LayerZeroBridge", () => {
       expect(await nativeToken.balanceOf(gateway.address)).to.be.equal(
         escrowMintAmount
       );
-
+      expect(await nativeToken.totalSupply()).to.be.equal(escrowMintAmount);
       expect(await gateway.deposits(escrow.address)).to.be.equal(
         escrowMintAmount
       );
@@ -393,6 +393,10 @@ describe("LayerZeroBridge", () => {
         UserNativeTokenMintAmount
       );
 
+      const totalSupplyBeforeBridge = await nativeToken.totalSupply();
+      expect(totalSupplyBeforeBridge).to.be.equal(
+        escrowMintAmount.add(UserNativeTokenMintAmount)
+      );
       await nativeToken.connect(user).approve(bridge.address, BridgeAmount);
 
       const nativeFee = {
@@ -456,6 +460,10 @@ describe("LayerZeroBridge", () => {
           (await bridge.tokens(nativeToken.address)).treasury
         )
       ).to.be.equal(BridgeAmount);
+
+      expect(await nativeToken.totalSupply()).to.be.equal(
+        totalSupplyBeforeBridge
+      );
     });
 
     it("should successfully send burnable token", async () => {
@@ -466,9 +474,13 @@ describe("LayerZeroBridge", () => {
       );
 
       //mint burnableToken for escrowBurnable
+      expect(await burnableToken.totalSupply()).to.be.equal(0);
+
       await burnableToken
         .connect(admin)
         .mint(escrowBurnable.address, escrowMintAmount);
+
+      expect(await burnableToken.totalSupply()).to.be.equal(escrowMintAmount);
 
       expect(await burnableToken.balanceOf(escrowBurnable.address)).to.be.equal(
         escrowMintAmount
@@ -490,6 +502,8 @@ describe("LayerZeroBridge", () => {
         await gateWayBurnable.deposits(escrowBurnable.address)
       ).to.be.equal(escrowMintAmount);
 
+      expect(await burnableToken.totalSupply()).to.be.equal(escrowMintAmount);
+
       const UserNativeTokenMintAmount = ethers.utils.parseEther("50");
 
       expect(await burnableToken.balanceOf(user.address)).to.be.equal(0);
@@ -498,6 +512,11 @@ describe("LayerZeroBridge", () => {
       await burnableToken
         .connect(user)
         .mint(user.address, UserNativeTokenMintAmount);
+
+      const totalSupplyBeforeBridge = await burnableToken.totalSupply();
+      expect(totalSupplyBeforeBridge).to.be.equal(
+        escrowMintAmount.add(UserNativeTokenMintAmount)
+      );
 
       expect(await burnableToken.balanceOf(user.address)).to.be.equal(
         UserNativeTokenMintAmount
@@ -568,6 +587,10 @@ describe("LayerZeroBridge", () => {
           (await bridge.tokens(burnableToken.address)).treasury
         )
       ).to.be.equal(0);
+
+      expect(await burnableToken.totalSupply()).to.be.equal(
+        totalSupplyBeforeBridge.sub(BridgeAmount)
+      );
     });
   });
 });
