@@ -1,5 +1,5 @@
 const { expect } = require("chai");
-const { ethers } = require("hardhat");
+const { ethers, network } = require("hardhat");
 
 import {
   deployMockContract,
@@ -11,19 +11,24 @@ import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 const ILzEndpointV2 = require("../artifacts/contracts/interfaces/ILzEndpointV2.sol/ILzEndpointV2.json");
 
 describe("MBToken Contract", function () {
+  const ONE = ethers.utils.parseUnits("1", 18);
+
   let mbToken: MBToken;
   let nativeToken: TestToken;
   let owner: SignerWithAddress;
   let lzReceiveLib: SignerWithAddress;
   let lzSendLib: SignerWithAddress;
+  let peer: SignerWithAddress;
   let user: SignerWithAddress,
     minter: SignerWithAddress,
     gateway: Gateway,
     layerZeroEndpoint: MockContract;
 
-  before(async function () {
-    [owner, minter, user, lzReceiveLib, lzSendLib] = await ethers.getSigners();
+  before(async () => {
+    [owner, minter, user, lzReceiveLib, lzSendLib, peer] = await ethers.getSigners();
+  });
 
+  beforeEach(async function () {
     layerZeroEndpoint = await deployMockContract(owner, ILzEndpointV2.abi);
 
     await layerZeroEndpoint.mock.quote.returns([
@@ -60,6 +65,7 @@ describe("MBToken Contract", function () {
       mbToken.address
     );
 
+    await mbToken.connect(owner).setPeer(30106, ethers.utils.hexZeroPad(peer.address, 32));
     await mbToken.grantRole(await mbToken.MINTER_ROLE(), minter.address);
   });
 
@@ -90,6 +96,7 @@ describe("MBToken Contract", function () {
   });
 
   it("Minter Should mint tokens correctly", async function () {
+    await mbToken.connect(owner).setGateway(gateway.address);
     const amount = ethers.utils.parseUnits("100", 18);
     //check user balance and total supply before mint
     expect(await mbToken.totalSupply()).to.equal(0);
@@ -117,37 +124,62 @@ describe("MBToken Contract", function () {
     ).to.be.revertedWith("Zero address");
   });
 
-  // it("Should correctly process message with sufficient balance", async function () {
-  //   const amountSD = ethers.utils.parseUnits("100", 18);
-  //   const amountLD = ethers.utils.parseUnits("100", 18);
-  //   const guid = ethers.utils.formatBytes32String("test-guid");
+  it("Should LZ be able to mint", async function () {
+    await mbToken.connect(owner).setGateway(gateway.address);
+    const decimalConversionRate = await mbToken.decimalConversionRate();
+    const amountLD = ONE.mul(3);
+    const amountSD = amountLD.div(decimalConversionRate);
 
-  //   const origin = {
-  //     srcEid: 30106,
-  //     sender: owner.address,
-  //     nonce: 0,
-  //   };
+    const guid = ethers.utils.formatBytes32String("test-guid");
 
-  //   const encodedMessage = ethers.utils.defaultAbiCoder.encode(
-  //     ["address", "uint256"],
-  //     [owner.address, amountSD]
-  //   );
+    const sender = ethers.utils.hexZeroPad(peer.address, 32);
 
-  //   expect(await nativeToken.balanceOf(owner.address)).to.equal(0);
-  //   await nativeToken.mint(owner.address, amountLD);
-  //   expect(await nativeToken.balanceOf(owner.address)).to.equal(amountLD);
+    const origin = {
+      srcEid: 30106,
+      sender: sender,
+      nonce: 1,
+    };
 
-  //   await nativeToken.transfer(gateway.address, amountLD);
-  //   expect(await nativeToken.balanceOf(gateway.address)).to.equal(amountLD);
+    const encodedMessage = ethers.utils.solidityPack(
+      ["bytes32", "uint64"],
+      [ethers.utils.hexZeroPad(user.address, 32), amountSD]
+    );
 
-  //   await mbToken.setGateway(gateway.address);
+    expect(await mbToken.balanceOf(user.address)).to.equal(0);
+    expect(await nativeToken.balanceOf(user.address)).to.equal(0);
 
-  //   await expect(
-  //     mbToken.lzReceive(origin, guid, encodedMessage, user.address, "0x")
-  //   )
-  //     .to.emit(mbToken, "OFTReceived")
-  //     .withArgs(guid, origin.srcEid, user.address, amountLD);
+    const gatewayBalance = amountLD.sub(ONE.mul(1));
+    await nativeToken.connect(owner).mint(gateway.address, gatewayBalance);
+    expect(await nativeToken.balanceOf(gateway.address)).to.equal(gatewayBalance);
 
-  //   expect(await nativeToken.balanceOf(user.address)).to.equal(amountLD);
-  // });
+    await network.provider.request({
+      method: "hardhat_impersonateAccount",
+      params: [layerZeroEndpoint.address],
+    });
+
+    await network.provider.send("hardhat_setBalance", [
+      layerZeroEndpoint.address,
+      ethers.utils.hexlify(
+        ethers.utils.parseUnits("1", 18)
+      ),
+    ]);
+
+    const lzSigner = await ethers.getSigner(layerZeroEndpoint.address);
+
+    await expect(
+      mbToken.connect(lzSigner).lzReceive(
+        origin, 
+        guid, 
+        encodedMessage, 
+        ethers.constants.AddressZero, 
+        "0x"
+      )
+    )
+      .to.emit(mbToken, "OFTReceived")
+      .withArgs(guid, origin.srcEid, user.address, amountLD);
+
+    expect(await mbToken.balanceOf(user.address)).to.equal(amountLD.sub(gatewayBalance));
+    expect(await nativeToken.balanceOf(user.address)).to.equal(gatewayBalance);
+    expect(await nativeToken.balanceOf(gateway.address)).to.equal(0);
+  });
 });
