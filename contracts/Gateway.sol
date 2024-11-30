@@ -17,7 +17,9 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
         TO_MBTOKEN
     }
 
+    bytes32 public constant DEPOSITOR_ROLE = keccak256("DEPOSITOR_ROLE");
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
+    bytes32 public constant UNPAUSER_ROLE = keccak256("UNPAUSER_ROLE");
 
     address public nativeToken;
     address public mbToken;
@@ -102,7 +104,7 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
     /// @param nativeTokenAmount The amount of native tokens to deposit.
     function deposit(
         uint256 nativeTokenAmount
-    ) external nonReentrant whenNotPaused {
+    ) external nonReentrant whenNotPaused onlyRole(DEPOSITOR_ROLE) {
         require(
             nativeTokenAmount > 0,
             "Gateway: TOTAL_DEPOSIT_MUST_BE_GREATER_THAN_0"
@@ -162,7 +164,7 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
     }
 
     /// @notice Unpauses the contract.
-    function unpause() external onlyRole(PAUSER_ROLE) {
+    function unpause() external onlyRole(UNPAUSER_ROLE) {
         _unpause();
     }
 
