@@ -101,6 +101,11 @@ describe("Escrow", () => {
     );
 
     expect(await nativeToken.balanceOf(gateway.address)).to.be.equal(0);
+
+    //Gateway: grant depositor role for escrow
+    await gateway
+      .connect(owner)
+      .grantRole(await gateway.DEPOSITOR_ROLE(), escrow.address);
   });
 
   describe("Deployment", () => {
@@ -122,7 +127,7 @@ describe("Escrow", () => {
       expect(await nativeToken.balanceOf(gateway.address)).to.be.equal(0);
     });
 
-    it("should allow the depositor to deposit tokens if below threshold and required amount less than escrowBalance", async () => {
+    it("should allow the depositor with depositor role in gateway to deposit tokens if below threshold and required amount less than escrowBalance", async () => {
       const gatewayBalance = await nativeToken.balanceOf(gateway.address);
       expect(gatewayBalance).to.be.equal(0);
 

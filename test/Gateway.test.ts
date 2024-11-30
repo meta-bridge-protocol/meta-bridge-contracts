@@ -63,7 +63,18 @@ describe("Gateway", function () {
     );
     await gateway.deployed();
 
-    await gateway.grantRole(await gateway.DEPOSITOR_ROLE(), depositor.address);
+    await expect(
+      gateway
+        .connect(user)
+        .grantRole(await gateway.DEPOSITOR_ROLE(), depositor.address)
+    ).to.be.revertedWithCustomError(
+      gateway,
+      "AccessControlUnauthorizedAccount"
+    );
+
+    await gateway
+      .connect(owner)
+      .grantRole(await gateway.DEPOSITOR_ROLE(), depositor.address);
   });
 
   describe("Deposit", function () {
