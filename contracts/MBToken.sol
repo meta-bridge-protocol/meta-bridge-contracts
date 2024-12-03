@@ -10,7 +10,6 @@ import {OApp, Origin, MessagingFee} from "@layerzerolabs/lz-evm-oapp-v2/contract
 import {OFTMsgCodec} from "@layerzerolabs/lz-evm-oapp-v2/contracts/oft/libs/OFTMsgCodec.sol";
 import {OFTComposeMsgCodec} from "@layerzerolabs/lz-evm-oapp-v2/contracts/oft/libs/OFTComposeMsgCodec.sol";
 import {IGateway} from "./interfaces/IGateway.sol";
-import {ILzEndpointV2, SetConfigParam} from "./interfaces/ILzEndpointV2.sol";
 
 contract MBToken is ERC20Burnable, OFT, AccessControl {
     using OFTMsgCodec for bytes;
