@@ -93,6 +93,8 @@ describe("Escrow", () => {
       assetManager.address
     );
 
+    await gateway.connect(owner).grantRole(await gateway.DEPOSITOR_ROLE(), escrow.address);
+
     await nativeToken.connect(owner).mint(escrow.address, escrowMintAmount);
     // await nativeToken.connect(owner).approve(gateway.address, escrowMintAmount);
 
