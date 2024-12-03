@@ -370,7 +370,19 @@ describe("LayerZeroBridge", () => {
         .grantRole(escrow.DEPOSITOR_ROLE(), escrowDepositor.address);
 
       //Deposit to gateway
+      await expect(
+        escrow.connect(escrowDepositor).depositToGateway()
+      ).to.be.revertedWithCustomError(
+        gateway,
+        "AccessControlUnauthorizedAccount"
+      );
+
+      await gateway
+        .connect(admin)
+        .grantRole(await gateway.DEPOSITOR_ROLE(), escrow.address);
+
       await escrow.connect(escrowDepositor).depositToGateway();
+
       expect(await nativeToken.balanceOf(escrow.address)).to.be.equal(0);
       expect(await nativeToken.balanceOf(gateway.address)).to.be.equal(
         escrowMintAmount
@@ -491,7 +503,21 @@ describe("LayerZeroBridge", () => {
         .grantRole(escrowBurnable.DEPOSITOR_ROLE(), escrowDepositor.address);
 
       //Deposit to gateway
+
+      await expect(
+        escrowBurnable.connect(escrowDepositor).depositToGateway()
+      ).to.be.revertedWithCustomError(
+        gateWayBurnable,
+        "AccessControlUnauthorizedAccount"
+      );
+
+      await gateWayBurnable.grantRole(
+        await gateWayBurnable.DEPOSITOR_ROLE(),
+        escrowBurnable.address
+      );
+
       await escrowBurnable.connect(escrowDepositor).depositToGateway();
+
       expect(await burnableToken.balanceOf(escrowBurnable.address)).to.be.equal(
         0
       );
