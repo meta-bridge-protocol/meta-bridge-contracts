@@ -28,12 +28,14 @@ contract LayerZeroBridge is AccessControl {
 
     // native token => Token
     mapping(address => Token) public tokens;
+    mapping(uint256 => uint256) public dstFee;
 
     event TokenSent(
         address indexed token,
         uint32 indexed dstEid,
         address indexed from,
-        uint256 amount
+        uint256 amount,
+        uint256 brideFee
     );
     event TokenAdd(address indexed token);
     event TokenRemove(address indexed token);
@@ -55,6 +57,7 @@ contract LayerZeroBridge is AccessControl {
         MessagingFee calldata _fee
     ) external payable {
         require(tokens[_nativeToken].mbToken != address(0), "Invalid token");
+        require(msg.value == _fee.nativeFee + dstFee[_dstEid]);
         ERC20Burnable token = ERC20Burnable(_nativeToken);
         IMBToken mbToken = IMBToken(tokens[_nativeToken].mbToken);
 
@@ -94,13 +97,19 @@ contract LayerZeroBridge is AccessControl {
             oftCmd: "" // The OFT command to be executed, unused in default OFT implementations.
         });
 
-        mbToken.send{value: msg.value}(
+        mbToken.send{value: msg.value - dstFee[_dstEid]}(
             sendParams,
             _fee, // Fee struct containing native gas and ZRO token.
             payable(msg.sender) // The refund address in case the send call reverts.
         );
 
-        emit TokenSent(_nativeToken, _dstEid, msg.sender, _amount);
+        emit TokenSent(
+            _nativeToken,
+            _dstEid,
+            msg.sender,
+            _amount,
+            dstFee[_dstEid]
+        );
     }
 
     function addToken(
@@ -156,6 +165,13 @@ contract LayerZeroBridge is AccessControl {
         emit TokenUpdate(_nativeToken);
     }
 
+    function setDstFee(
+        uint256 _dstEid,
+        uint256 _fee
+    ) external onlyRole(ADMIN_ROLE) {
+        dstFee[_dstEid] = _fee;
+    }
+
     /* @dev Quotes the gas needed to pay for the full omnichain transaction.
      * @return nativeFee Estimated gas fee in native gas.
      * @return lzTokenFee Estimated gas fee in ZRO token.
@@ -168,7 +184,11 @@ contract LayerZeroBridge is AccessControl {
         uint256 _minAmountLD,
         bytes calldata _extraOptions,
         bool _payInLzToken
-    ) external view returns (uint256 nativeFee, uint256 lzTokenFee) {
+    )
+        external
+        view
+        returns (uint256 nativeFee, uint256 lzTokenFee, uint256 bridgeFee)
+    {
         require(tokens[_nativeToken].mbToken != address(0), "Invalid token");
         IMBToken mbToken = IMBToken(tokens[_nativeToken].mbToken);
         SendParam memory sendParams = SendParam({
@@ -181,7 +201,7 @@ contract LayerZeroBridge is AccessControl {
             oftCmd: "" // The OFT command to be executed, unused in default OFT implementations.
         });
         MessagingFee memory fee = mbToken.quoteSend(sendParams, _payInLzToken);
-        return (fee.nativeFee, fee.lzTokenFee);
+        return (fee.nativeFee, fee.lzTokenFee, dstFee[_dstEid]);
     }
 
     /**
