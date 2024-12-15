@@ -57,7 +57,10 @@ contract LayerZeroBridge is AccessControl {
         MessagingFee calldata _fee
     ) external payable {
         require(tokens[_nativeToken].mbToken != address(0), "Invalid token");
-        require(msg.value == _fee.nativeFee + dstFee[_dstEid]);
+        require(
+            msg.value == _fee.nativeFee + dstFee[_dstEid],
+            "Insufficient fee"
+        );
         ERC20Burnable token = ERC20Burnable(_nativeToken);
         IMBToken mbToken = IMBToken(tokens[_nativeToken].mbToken);
 
@@ -170,6 +173,19 @@ contract LayerZeroBridge is AccessControl {
         uint256 _fee
     ) external onlyRole(ADMIN_ROLE) {
         dstFee[_dstEid] = _fee;
+    }
+
+    function adminWithdraw(
+        uint256 amount,
+        address _to,
+        address _tokenAddr
+    ) external onlyRole(ADMIN_ROLE) {
+        require(_to != address(0), "Invalid receiver");
+        if (_tokenAddr == address(0)) {
+            payable(_to).transfer(amount);
+        } else {
+            ERC20Burnable(_tokenAddr).transfer(_to, amount);
+        }
     }
 
     /* @dev Quotes the gas needed to pay for the full omnichain transaction.
