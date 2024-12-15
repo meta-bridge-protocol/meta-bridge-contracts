@@ -478,6 +478,127 @@ describe("LayerZeroBridge", () => {
       );
     });
 
+    it("should successfully send token with dst fee", async () => {
+      const escrowMintAmount = ethers.utils.parseEther("100");
+      const BridgeAmount = ethers.utils.parseEther("20");
+      //mint nativeToken for escrow
+      await nativeToken.connect(admin).mint(escrow.address, escrowMintAmount);
+      await escrow
+        .connect(admin)
+        .grantRole(escrow.DEPOSITOR_ROLE(), escrowDepositor.address);
+      //Deposit to gateway
+      await gateway
+        .connect(admin)
+        .grantRole(await gateway.DEPOSITOR_ROLE(), escrow.address);
+      await escrow.connect(escrowDepositor).depositToGateway();
+      const UserNativeTokenMintAmount = ethers.utils.parseEther("50");
+      //mint native token for user
+      await nativeToken
+        .connect(user)
+        .mint(user.address, UserNativeTokenMintAmount);
+
+      const totalSupplyBeforeBridge = await nativeToken.totalSupply();
+
+      await nativeToken.connect(user).approve(bridge.address, BridgeAmount);
+
+      const nativeFee = {
+        lzTokenFee: BigInt(0),
+        nativeFee: ethers.utils.parseUnits("0.000001", 18),
+      };
+
+      await lzEndpoint.mock.send.returns({
+        guid: ethers.utils.formatBytes32String("guid"),
+        nonce: 1,
+        fee: {
+          lzTokenFee: 0,
+          nativeFee: ethers.utils.parseUnits("0.000001", 18),
+        },
+      });
+
+      const MINTER_ROLE = await bridgeToken.MINTER_ROLE();
+      await bridgeToken.grantRole(MINTER_ROLE, bridge.address);
+
+      expect(await bridge.dstFee(dstEid)).to.be.equal(0);
+
+      const dseFeeAmount = ethers.utils.parseUnits("2", 18);
+
+      await bridge.connect(admin).setDstFee(dstEid, dseFeeAmount);
+
+      const dstFee = await bridge.dstFee(dstEid);
+
+      expect(await bridge.dstFee(dstEid)).to.be.equals(dstFee);
+
+      await expect(
+        bridge
+          .connect(user)
+          .send(
+            nativeToken.address,
+            dstEid,
+            BridgeAmount,
+            BridgeAmount,
+            extraOption,
+            nativeFee,
+            { value: nativeFee.nativeFee }
+          )
+      ).to.be.reverted;
+
+      const bridgeContractNativeBalance = await ethers.provider.getBalance(
+        bridge.address
+      );
+
+      const userNativeBalance = await ethers.provider.getBalance(user.address);
+
+      const tx = await bridge
+        .connect(user)
+        .send(
+          nativeToken.address,
+          dstEid,
+          BridgeAmount,
+          BridgeAmount,
+          extraOption,
+          nativeFee,
+          { value: nativeFee.nativeFee.add(dstFee) }
+        );
+
+      const receipt = await tx.wait();
+
+      const gasUsed = receipt.gasUsed.mul(receipt.effectiveGasPrice);
+      const totalCost = nativeFee.nativeFee.add(dstFee).add(gasUsed);
+
+      expect(await ethers.provider.getBalance(user.address)).to.be.equals(
+        userNativeBalance.sub(totalCost)
+      );
+
+      expect(await ethers.provider.getBalance(bridge.address)).to.be.equals(
+        dstFee.add(bridgeContractNativeBalance)
+      );
+
+      expect(await nativeToken.balanceOf(escrow.address)).to.be.equal(
+        BridgeAmount
+      );
+
+      expect(await gateway.deposits(escrow.address)).to.be.equal(
+        escrowMintAmount
+      );
+
+      expect(await gateway.deposits(user.address)).to.be.equal(0);
+
+      expect(await nativeToken.balanceOf(user.address)).to.be.equal(
+        UserNativeTokenMintAmount.sub(BridgeAmount)
+      );
+
+      //treasury ==> escrow
+      expect(
+        await nativeToken.balanceOf(
+          (await bridge.tokens(nativeToken.address)).treasury
+        )
+      ).to.be.equal(BridgeAmount);
+
+      expect(await nativeToken.totalSupply()).to.be.equal(
+        totalSupplyBeforeBridge
+      );
+    });
+
     it("should successfully send burnable token", async () => {
       const escrowMintAmount = ethers.utils.parseEther("100");
       const BridgeAmount = ethers.utils.parseEther("20");
