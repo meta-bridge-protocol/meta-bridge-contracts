@@ -175,6 +175,10 @@ contract LayerZeroBridge is AccessControl {
         dstFee[_dstEid] = _fee;
     }
 
+    function setLzEndpoint(address _lzEndpoint) external onlyRole(ADMIN_ROLE) {
+        lzEndpoint = ILayerZeroEndpointV2(_lzEndpoint);
+    }
+
     function adminWithdraw(
         uint256 amount,
         address _to,

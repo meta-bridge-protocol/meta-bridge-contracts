@@ -41,6 +41,9 @@ contract MuonBridge is AccessControl {
 
     uint256 public network; // current chain id
 
+    uint16 public bridgeFeePercent;
+    uint8 public bridgeFeeDecimals;
+
     // tokenId => Token
     mapping(uint256 => Token) public tokens;
     mapping(address => uint256) public tokenIds;
@@ -76,12 +79,16 @@ contract MuonBridge is AccessControl {
     constructor(
         uint256 _muonAppId,
         IMuonClient.PublicKey memory _muonPublicKey,
-        address _muon
+        address _muon,
+        uint16 _bridgeFeePercent,
+        uint8 _bridgeFeeDecimals
     ) {
         network = getExecutingChainID();
         muonAppId = _muonAppId;
         muonPublicKey = _muonPublicKey;
         muon = IMuonClient(_muon);
+        bridgeFeePercent = _bridgeFeePercent;
+        bridgeFeeDecimals = _bridgeFeeDecimals;
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
@@ -102,29 +109,32 @@ contract MuonBridge is AccessControl {
             "Bridge: unknown tokenId"
         );
 
+        uint256 bridgeFee = _calcBridgeFee(_amount);
+        uint256 netAmount = _amount - bridgeFee;
+
         ERC20Burnable token = ERC20Burnable(tokens[tokenId].rToken);
         if (tokens[tokenId].isMainChain || !tokens[tokenId].isBurnable) {
             uint256 balance = token.balanceOf(tokens[tokenId].treasury);
             token.safeTransferFrom(
                 msg.sender,
                 tokens[tokenId].treasury,
-                _amount
+                netAmount
             );
             uint256 receivedAmount = token.balanceOf(tokens[tokenId].treasury) -
                 balance;
             require(
-                _amount == receivedAmount,
+                netAmount == receivedAmount,
                 "Received amount does not match sent amount"
             );
         } else {
-            token.burnFrom(msg.sender, _amount);
+            token.burnFrom(msg.sender, netAmount);
         }
 
         uint256 txId = ++lastTxId;
         txs[txId] = TX({
             tokenId: tokenId,
             toChain: uint256(toChain),
-            amount: _amount,
+            amount: netAmount,
             user: msg.sender
         });
 
@@ -302,15 +312,24 @@ contract MuonBridge is AccessControl {
         return id;
     }
 
+    function _calcBridgeFee(uint256 _amount) public view returns (uint256 fee) {
+        fee = (_amount * bridgeFeePercent) / (10 ** bridgeFeeDecimals);
+    }
+
     function quoteSend(
         address, // _nativeToken
         address, // _from
         uint32, // _dstEid
-        uint256, // _amount
+        uint256 _amount, // _amount
         uint256, // _minAmountLD
         bytes calldata, // _extraOptions
         bool // _payInLzToken
-    ) external pure returns (uint256 nativeFee, uint256 lzTokenFee) {
-        return (0, 0);
+    )
+        external
+        view
+        returns (uint256 nativeFee, uint256 lzTokenFee, uint256 bridgeFee)
+    {
+        bridgeFee = _calcBridgeFee(_amount);
+        return (0, 0, bridgeFee);
     }
 }
