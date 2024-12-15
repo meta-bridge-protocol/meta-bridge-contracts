@@ -540,7 +540,7 @@ describe("LayerZeroBridge", () => {
             nativeFee,
             { value: nativeFee.nativeFee }
           )
-      ).to.be.reverted;
+      ).to.be.revertedWith("Insufficient fee");
 
       const bridgeContractNativeBalance = await ethers.provider.getBalance(
         bridge.address
