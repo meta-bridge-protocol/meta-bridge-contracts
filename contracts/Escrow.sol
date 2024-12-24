@@ -40,6 +40,8 @@ contract Escrow is Initializable, AccessControlEnumerableUpgradeable {
     event SetThresholdAmount(uint256 thresholdAmount);
     event TreasureChanged(address oldTreasure, address newTreasure);
     event WithdrawERC20(address token, address to, uint256 amount);
+    event SetPeriodLimit(uint256 period);
+    event SetPeriodMaxAmount(uint256 maxAmount);
 
     function initialize(
         address _gatewayAddress,
@@ -113,6 +115,22 @@ contract Escrow is Initializable, AccessControlEnumerableUpgradeable {
         treasureAddress = _treasureAddress;
 
         emit TreasureChanged(oldTreasure, treasureAddress);
+    }
+
+    function setPeriodLimit(
+        uint256 _periodLimit
+    ) external onlyRole(ADMIN_ROLE) {
+        periodLimit = _periodLimit;
+
+        emit SetPeriodLimit(periodLimit);
+    }
+
+    function setPeriodMaxAmount(
+        uint256 _maxAmount
+    ) external onlyRole(ADMIN_ROLE) {
+        periodMaxAmount = _maxAmount;
+
+        emit SetPeriodMaxAmount(periodMaxAmount);
     }
 
     function withdrawERC20(
