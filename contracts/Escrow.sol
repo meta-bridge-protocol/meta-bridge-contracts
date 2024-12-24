@@ -24,6 +24,10 @@ contract Escrow is Initializable, AccessControlEnumerableUpgradeable {
     address public nativeTokenAddress;
     address public treasureAddress;
     uint256 public thresholdAmount;
+    uint256 public periodLimit;
+    uint256 public periodStart;
+    uint256 public periodMaxAmount;
+    uint256 public periodDepositedAmount;
 
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     bytes32 public constant DEPOSITOR_ROLE = keccak256("DEPOSITOR_ROLE");
@@ -71,6 +75,8 @@ contract Escrow is Initializable, AccessControlEnumerableUpgradeable {
             ? requiredAmount
             : escrowBalance;
 
+        checkRuleSet(amount);
+
         IERC20(nativeTokenAddress).approve(gatewayAddress, amount);
         IGateway(gatewayAddress).deposit(amount);
 
@@ -116,5 +122,19 @@ contract Escrow is Initializable, AccessControlEnumerableUpgradeable {
         IERC20(token).transfer(treasureAddress, amount);
 
         emit WithdrawERC20(token, treasureAddress, amount);
+    }
+
+    function checkRuleSet(uint256 amount) internal {
+        if (!hasRole(ADMIN_ROLE, msg.sender)) {
+            periodDepositedAmount += amount;
+            if (block.timestamp - periodStart <= periodLimit) {
+                require(
+                    periodDepositedAmount <= periodMaxAmount,
+                    "Period threshold is exceeded"
+                );
+            } else {
+                periodStart = block.timestamp;
+            }
+        }
     }
 }
