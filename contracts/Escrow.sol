@@ -56,6 +56,8 @@ contract Escrow is Initializable, AccessControlEnumerableUpgradeable {
 
         nativeTokenAddress = IGateway(gatewayAddress).nativeToken();
 
+        periodStart = block.timestamp;
+
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(ADMIN_ROLE, msg.sender);
     }
@@ -152,6 +154,7 @@ contract Escrow is Initializable, AccessControlEnumerableUpgradeable {
                 );
             } else {
                 periodStart = block.timestamp;
+                periodDepositedAmount = 0;
             }
         }
     }
