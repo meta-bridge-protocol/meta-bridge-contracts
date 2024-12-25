@@ -154,7 +154,7 @@ contract Escrow is Initializable, AccessControlEnumerableUpgradeable {
                 );
             } else {
                 periodStart = block.timestamp;
-                periodDepositedAmount = 0;
+                periodDepositedAmount = amount;
             }
         }
     }
