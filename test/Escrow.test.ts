@@ -93,7 +93,9 @@ describe("Escrow", () => {
       assetManager.address
     );
 
-    await gateway.connect(owner).grantRole(await gateway.DEPOSITOR_ROLE(), escrow.address);
+    await gateway
+      .connect(owner)
+      .grantRole(await gateway.DEPOSITOR_ROLE(), escrow.address);
 
     await nativeToken.connect(owner).mint(escrow.address, escrowMintAmount);
     // await nativeToken.connect(owner).approve(gateway.address, escrowMintAmount);
@@ -130,19 +132,23 @@ describe("Escrow", () => {
     });
 
     it("should allow the depositor with depositor role in gateway to deposit tokens if below threshold and required amount less than escrowBalance", async () => {
-      const gatewayBalance = await nativeToken.balanceOf(gateway.address);
+      let gatewayBalance = await nativeToken.balanceOf(gateway.address);
       expect(gatewayBalance).to.be.equal(0);
 
       expect(await nativeToken.balanceOf(treasure.address)).to.be.equal(0);
 
-      const escrowBalance = await nativeToken.balanceOf(escrow.address);
+      let escrowBalance = await nativeToken.balanceOf(escrow.address);
       expect(escrowBalance).to.be.equal(escrowMintAmount);
 
-      const requiredAmount = initialThreshold.sub(gatewayBalance);
+      let requiredAmount = initialThreshold.sub(gatewayBalance);
 
       expect(requiredAmount).lt(escrowBalance);
 
       expect(await gateway.deposits(escrow.address)).to.be.equal(0);
+
+      await escrow.connect(owner).setPeriodLimit(864000);
+
+      await escrow.connect(owner).setPeriodMaxAmount(initialThreshold);
 
       await expect(escrow.connect(depositor).depositToGateway())
         .to.emit(escrow, "DepositToGateway")
@@ -161,6 +167,28 @@ describe("Escrow", () => {
       );
 
       expect(await nativeToken.balanceOf(treasure.address)).to.be.equal(0);
+
+      await escrow.connect(owner).setThresholdAmount(initialThreshold.mul(2));
+
+      const newThreshold = await escrow.thresholdAmount();
+
+      gatewayBalance = await nativeToken.balanceOf(gateway.address);
+
+      escrowBalance = await nativeToken.balanceOf(escrow.address);
+
+      expect(
+        await expect(escrow.connect(depositor).depositToGateway())
+      ).to.be.revertedWith("Period threshold is exceeded");
+
+      await escrow.connect(owner).setPeriodMaxAmount(initialThreshold.mul(2));
+
+      const SECONDS_IN_A_DAY = 86400;
+      await ethers.provider.send("evm_increaseTime", [SECONDS_IN_A_DAY]);
+      await ethers.provider.send("evm_mine", []);
+
+      await expect(escrow.connect(depositor).depositToGateway())
+        .to.emit(escrow, "DepositToGateway")
+        .withArgs(escrowBalance, newThreshold);
     });
 
     it("should allow the depositor to deposit tokens if below threshold and escrowBalance less than required amount", async () => {
