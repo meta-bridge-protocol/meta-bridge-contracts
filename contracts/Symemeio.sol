@@ -11,38 +11,27 @@ contract Symemeio is ERC20Burnable, AccessControl {
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
 
     /**
-     * @dev Event to log the change of maxSupply.
-     * @param maxSupply new value of maxSupply.
-     */
-    event MaxSupplyChanged(uint256 maxSupply);
-
-    /**
      * @dev MaxSupply has been exceeded.
      */
     error MaxSupplyExceeded(uint256 increasedSupply, uint256 maxSupply);
 
     constructor(
-        uint256 _cap,
+        uint256 _maxSupply,
         string memory _name,
         string memory _symbol
     ) ERC20(_name, _symbol) {
-        _setMaxSupply(_cap);
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(ADMIN_ROLE, msg.sender);
+
+        maxSupply = _maxSupply;
     }
 
     function mint(address to, uint256 amount) external onlyRole(MINTER_ROLE) {
         _mint(to, amount);
     }
 
-    function setMaxSupply(uint256 _cap) external onlyRole(ADMIN_ROLE) {
-        _setMaxSupply(_cap);
-    }
-
-    function _setMaxSupply(uint256 _cap) internal {
-        maxSupply = _cap * (10 ** decimals());
-
-        emit MaxSupplyChanged(maxSupply);
+    function setMaxSupply(uint256 _maxSupply) external onlyRole(ADMIN_ROLE) {
+        maxSupply = _maxSupply;
     }
 
     /**

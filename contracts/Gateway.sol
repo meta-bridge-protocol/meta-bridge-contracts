@@ -37,8 +37,6 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
         address indexed toToken,
         uint256 amount
     );
-    event SetPeriodLimit(uint256 period);
-    event SetPeriodMaxAmount(uint256 maxAmount);
 
     /// @notice Constructs a new Gateway contract.
     constructor(address _admin, address _nativeToken, address _mbToken) {
@@ -85,16 +83,12 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
         uint256 _periodLimit
     ) external onlyRole(ADMIN_ROLE) {
         periodLimit = _periodLimit;
-
-        emit SetPeriodLimit(periodLimit);
     }
 
     function setPeriodMaxAmount(
         uint256 _maxAmount
     ) external onlyRole(ADMIN_ROLE) {
         periodMaxAmount = _maxAmount;
-
-        emit SetPeriodMaxAmount(periodMaxAmount);
     }
 
     function adminWithdraw(
@@ -119,7 +113,7 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
             to_ != address(0),
             "Gateway: RECIPIENT_ADDRESS_MUST_BE_NON-ZERO"
         );
-        checkRuleSet(amount_);
+        checkLimits(amount_);
 
         uint256 balance = IERC20(mbToken).balanceOf(address(this));
 
@@ -135,7 +129,7 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
         emit TokenSwapped(msg.sender, to_, mbToken, nativeToken, amount_);
     }
 
-    function checkRuleSet(uint256 amount) internal {
+    function checkLimits(uint256 amount) internal {
         if (!hasRole(ADMIN_ROLE, msg.sender)) {
             if (block.timestamp - periodStart <= periodLimit) {
                 periodMintedAmount += amount;
