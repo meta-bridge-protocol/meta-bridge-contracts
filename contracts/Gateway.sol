@@ -53,6 +53,7 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
         periodStart = block.timestamp;
         nativeToken = _nativeToken;
         mbToken = _mbToken;
+        feeScale = 1;
     }
 
     /// @notice Swaps a specified amount of mb tokens to native tokens.
