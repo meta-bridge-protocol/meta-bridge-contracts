@@ -104,6 +104,13 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
         }
     }
 
+    function swapableAmount() external view returns (uint256) {
+        if (block.timestamp - periodStart <= periodLimit) {
+            return periodMaxAmount - periodMintedAmount;
+        }
+        return periodMaxAmount;
+    }
+
     /// @dev Internal function to handle the token swap.
     /// @param amount_ The amount of tokens to swap.
     /// @param to_ The recipient address of the swapped tokens.

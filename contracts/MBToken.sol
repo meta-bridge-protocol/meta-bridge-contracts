@@ -60,9 +60,7 @@ contract MBToken is ERC20Burnable, OFT, AccessControl {
         // Thus everything is bytes32() encoded in flight.
         address toAddress = _message.sendTo().bytes32ToAddress();
 
-        uint256 balance = IERC20(gateway.nativeToken()).balanceOf(
-            address(gateway)
-        );
+        uint256 balance = gateway.swapableAmount();
 
         // @dev Credit the amountLD to the recipient and return the ACTUAL amount the recipient received in local decimals
         uint256 amountReceivedLD = _credit(
