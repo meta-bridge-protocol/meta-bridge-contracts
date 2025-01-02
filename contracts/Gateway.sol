@@ -23,6 +23,8 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
     uint256 public periodStart;
     uint256 public periodMaxAmount;
     uint256 public periodMintedAmount;
+    uint32 public feePercent;
+    uint32 public feeScale;
 
     /// @notice Event to log the successful token swap.
     /// @param from The address that initiated the swap.
@@ -91,6 +93,14 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
         periodMaxAmount = _maxAmount;
     }
 
+    function setFeePercent(uint32 _percent) external onlyRole(ADMIN_ROLE) {
+        feePercent = _percent;
+    }
+
+    function setFeeScale(uint32 _scale) external onlyRole(ADMIN_ROLE) {
+        feeScale = _scale;
+    }
+
     function adminWithdraw(
         uint256 amount,
         address _to,
@@ -128,18 +138,30 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
             to_ != address(0),
             "Gateway: RECIPIENT_ADDRESS_MUST_BE_NON-ZERO"
         );
-        checkLimits(amount_);
 
-        uint256 balance = IERC20(mbToken).balanceOf(address(this));
+        uint256 mbBalance = IERC20(mbToken).balanceOf(address(this));
 
         IERC20(mbToken).safeTransferFrom(msg.sender, address(this), amount_);
 
         uint256 receivedAmount = IERC20(mbToken).balanceOf(address(this)) -
-            balance;
+            mbBalance;
         require(amount_ == receivedAmount, "Gateway: INVALID_RECEIVED_AMOUNT");
 
-        ERC20Burnable(mbToken).burn(amount_);
-        Symemeio(nativeToken).mint(to_, amount_);
+        uint256 maxClaimableAmount = swappableAmount();
+        uint256 netAmount = amount_ - (amount_ * (feePercent / feeScale));
+
+        if (netAmount <= maxClaimableAmount) {
+            ERC20Burnable(mbToken).burn(amount_);
+        } else {
+            ERC20Burnable(mbToken).burn(maxClaimableAmount);
+            netAmount =
+                maxClaimableAmount -
+                (maxClaimableAmount * (feePercent / feeScale));
+            IERC20(mbToken).safeTransfer(to_, amount_ - maxClaimableAmount);
+        }
+
+        Symemeio(nativeToken).mint(to_, netAmount);
+        checkLimits(netAmount);
 
         emit TokenSwapped(msg.sender, to_, mbToken, nativeToken, amount_);
     }
