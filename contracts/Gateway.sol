@@ -104,11 +104,19 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
         }
     }
 
-    function swapableAmount() external view returns (uint256) {
+    function swappableAmount() public view returns (uint256) {
+        uint256 supply = Symemeio(nativeToken).maxSupply() -
+            Symemeio(nativeToken).totalSupply();
+        uint256 result;
         if (block.timestamp - periodStart <= periodLimit) {
-            return periodMaxAmount - periodMintedAmount;
+            result = periodMaxAmount - periodMintedAmount;
+        } else {
+            result = periodMaxAmount;
         }
-        return periodMaxAmount;
+        if (supply >= result) {
+            return result;
+        }
+        return supply;
     }
 
     /// @dev Internal function to handle the token swap.

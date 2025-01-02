@@ -9,5 +9,5 @@ interface IGateway {
 
     function nativeToken() external view returns (address);
 
-    function swapableAmount() external view returns (uint256);
+    function swappableAmount() external view returns (uint256);
 }
