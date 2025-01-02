@@ -82,23 +82,19 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
         _unpause();
     }
 
-    function setPeriodLimit(
-        uint256 _periodLimit
-    ) external onlyRole(ADMIN_ROLE) {
-        periodLimit = _periodLimit;
-    }
-
-    function setPeriodMaxAmount(
+    function setLimits(
+        uint256 _periodLimit,
         uint256 _maxAmount
     ) external onlyRole(ADMIN_ROLE) {
+        periodLimit = _periodLimit;
         periodMaxAmount = _maxAmount;
     }
 
-    function setFeePercent(uint32 _percent) external onlyRole(ADMIN_ROLE) {
+    function setFee(
+        uint32 _percent,
+        uint32 _scale
+    ) external onlyRole(ADMIN_ROLE) {
         feePercent = _percent;
-    }
-
-    function setFeeScale(uint32 _scale) external onlyRole(ADMIN_ROLE) {
         feeScale = _scale;
     }
 
@@ -119,10 +115,12 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
         uint256 supply = Symemeio(nativeToken).maxSupply() -
             Symemeio(nativeToken).totalSupply();
         uint256 result;
-        if (block.timestamp - periodStart <= periodLimit) {
-            result = periodMaxAmount - periodMintedAmount;
-        } else {
-            result = periodMaxAmount;
+        if (periodLimit > 0) {
+            if (block.timestamp - periodStart <= periodLimit) {
+                result = periodMaxAmount - periodMintedAmount;
+            } else {
+                result = periodMaxAmount;
+            }
         }
         if (supply >= result) {
             return result;
