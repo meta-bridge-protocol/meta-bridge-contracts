@@ -147,7 +147,7 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
         require(amount_ == receivedAmount, "Gateway: INVALID_RECEIVED_AMOUNT");
 
         uint256 maxClaimableAmount = swappableAmount();
-        uint256 netAmount = amount_ - (amount_ * (feePercent / feeScale));
+        uint256 netAmount = amount_ - ((amount_ * feePercent) / feeScale);
 
         if (netAmount <= maxClaimableAmount) {
             ERC20Burnable(mbToken).burn(amount_);
