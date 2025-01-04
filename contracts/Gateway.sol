@@ -155,7 +155,7 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
             ERC20Burnable(mbToken).burn(maxClaimableAmount);
             netAmount =
                 maxClaimableAmount -
-                (maxClaimableAmount * (feePercent / feeScale));
+                ((maxClaimableAmount * feePercent) / feeScale);
             IERC20(mbToken).safeTransfer(to_, amount_ - maxClaimableAmount);
         }
 
