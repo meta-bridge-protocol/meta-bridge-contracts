@@ -104,7 +104,7 @@ describe("Gateway", function () {
     expect(await mbToken.totalSupply()).to.be.equal(initialUserMbTokenBalance);
   });
 
-  describe("check data after deploy", function () {
+  describe("Check data after deploy", function () {
     it("should set maxSupply, token addresses, mbToken gateway, periodStart successfully", async function () {
       expect(await symemeio.maxSupply()).to.be.equal(initialMaxSupply);
       expect(await symemeio.totalSupply()).to.be.equal(0);
