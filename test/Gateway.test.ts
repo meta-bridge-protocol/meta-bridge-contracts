@@ -562,6 +562,152 @@ describe("Gateway", function () {
         initialUserMbTokenBalance.sub(amountToSwap)
       );
     });
+
+    it("Should calculate the correct netAmount with minimal fee (feePercent = 1, feeScale = 1000)", async function () {
+      const swapAmountTest = ethers.utils.parseUnits("1000", 18);
+      const feePercent = 1;
+      const feeScale = 1000;
+
+      await gateway.connect(gatewayAdmin).setFee(feePercent, feeScale);
+
+      await mbToken.connect(user).approve(gateway.address, swapAmountTest);
+
+      await gateway.connect(user).swapToNative(swapAmountTest);
+
+      const feeAmount = swapAmountTest.mul(feePercent).div(feeScale);
+      const expectedNetAmount = swapAmountTest.sub(feeAmount);
+
+      const userBalance = await symemeio.balanceOf(user.address);
+      expect(userBalance).to.be.equal(expectedNetAmount);
+
+      const expectedTotalSupply = initialUserMbTokenBalance.sub(swapAmountTest);
+      const currentTotalSupply = await mbToken.totalSupply();
+      expect(currentTotalSupply).to.be.equal(expectedTotalSupply);
+    });
+
+    it("Should work correctly with no fee (feePercent = 0)", async function () {
+      const swapAmountTest = ethers.utils.parseUnits("50", 18);
+      const feePercent = 0; // No fee
+      const feeScale = 100;
+
+      await gateway.connect(gatewayAdmin).setFee(feePercent, feeScale);
+
+      await mbToken.connect(user).approve(gateway.address, swapAmountTest);
+      await gateway.connect(user).swapToNative(swapAmountTest);
+
+      // Calculate expected values
+      const feeAmount = swapAmountTest.mul(feePercent).div(feeScale); // fee = 0
+      const netAmount = swapAmountTest.sub(feeAmount); // netAmount = swapAmount
+
+      expect(await symemeio.balanceOf(user.address)).to.be.equal(netAmount);
+      expect(await mbToken.totalSupply()).to.be.equal(
+        initialUserMbTokenBalance.sub(swapAmountTest)
+      );
+    });
+
+    it("Should work correctly with maximum fee (feePercent = feeScale)", async function () {
+      const swapAmountTest = ethers.utils.parseUnits("50", 18);
+      const feePercent = 100; // Maximum fee
+      const feeScale = 100; // 100% fee scaling
+
+      await gateway.connect(gatewayAdmin).setFee(feePercent, feeScale);
+
+      await mbToken.connect(user).approve(gateway.address, swapAmountTest);
+      await gateway.connect(user).swapToNative(swapAmountTest);
+
+      const feeAmount = swapAmountTest.mul(feePercent).div(feeScale); // fee = swapAmount
+      const netAmount = swapAmountTest.sub(feeAmount); // netAmount = 0
+
+      expect(await symemeio.balanceOf(user.address)).to.be.equal(netAmount);
+      expect(await mbToken.totalSupply()).to.be.equal(
+        initialUserMbTokenBalance.sub(swapAmountTest)
+      );
+    });
+
+    it("Should work correctly with half fee (feePercent = feeScale / 2)", async function () {
+      const swapAmountTest = ethers.utils.parseUnits("50", 18);
+      const feePercent = 50; // 50% fee
+      const feeScale = 100; // Scaling factor
+
+      await gateway.connect(gatewayAdmin).setFee(feePercent, feeScale);
+
+      await mbToken.connect(user).approve(gateway.address, swapAmountTest);
+      await gateway.connect(user).swapToNative(swapAmountTest);
+
+      const feeAmount = swapAmountTest.mul(feePercent).div(feeScale); // fee = swapAmount * 50 / 100
+      const netAmount = swapAmountTest.sub(feeAmount); // netAmount = swapAmount - fee
+
+      expect(await symemeio.balanceOf(user.address)).to.be.equal(netAmount);
+      expect(await mbToken.totalSupply()).to.be.equal(
+        initialUserMbTokenBalance.sub(swapAmountTest)
+      );
+    });
+
+    it("Should work correctly with a small decimal fee (feePercent = 0.5%)", async function () {
+      const swapAmountTest = ethers.utils.parseUnits("50", 18);
+      const feePercent = 0.5; // 0.5% fee
+      const feeScale = 100; // Scaling factor
+
+      await gateway
+        .connect(gatewayAdmin)
+        .setFee(feePercent * 100, feeScale * 100);
+
+      await mbToken.connect(user).approve(gateway.address, swapAmountTest);
+      await gateway.connect(user).swapToNative(swapAmountTest);
+
+      const feeAmount = swapAmountTest
+        .mul(feePercent * 100)
+        .div(feeScale * 100); // fee = swapAmount * 0.005
+      const netAmount = swapAmountTest.sub(feeAmount); // netAmount = swapAmount - fee
+
+      expect(await symemeio.balanceOf(user.address)).to.be.equal(netAmount);
+      expect(await mbToken.totalSupply()).to.be.equal(
+        initialUserMbTokenBalance.sub(swapAmountTest)
+      );
+    });
+
+    it("Should handle very small swap amounts (e.g., 0.0001)", async function () {
+      const swapAmountTest = ethers.utils.parseUnits("0.0001", 18); // Small amount to swap
+      const feePercent = 10; // 10% fee
+      const feeScale = 100; // Scaling factor
+
+      await gateway.connect(gatewayAdmin).setFee(feePercent, feeScale);
+
+      await mbToken.connect(user).approve(gateway.address, swapAmountTest);
+      await gateway.connect(user).swapToNative(swapAmountTest);
+
+      const feeAmount = swapAmountTest.mul(feePercent).div(feeScale); // fee = 0.0001 * 0.1
+      const netAmount = swapAmountTest.sub(feeAmount); // netAmount = swapAmount - fee
+
+      expect(await symemeio.balanceOf(user.address)).to.be.equal(netAmount);
+      expect(await mbToken.totalSupply()).to.be.equal(
+        initialUserMbTokenBalance.sub(swapAmountTest)
+      );
+    });
+
+    it("Should handle decimal amounts for swap", async function () {
+      const swapAmountTest = ethers.utils.parseUnits("123.45672", 18); // Precise decimal amount
+      const feePercent = 2.5; // 2.5% fee
+      const feeScale = 100; // Scaling factor
+
+      await gateway
+        .connect(gatewayAdmin)
+        .setFee(feePercent * 100, feeScale * 100);
+
+      await mbToken.connect(user).approve(gateway.address, swapAmountTest);
+      await gateway.connect(user).swapToNative(swapAmountTest);
+
+      // Calculate expected values
+      const feeAmount = swapAmountTest
+        .mul(feePercent * 100)
+        .div(feeScale * 100); // fee = swapAmount * 0.025
+      const netAmount = swapAmountTest.sub(feeAmount); // netAmount = swapAmount - fee
+
+      expect(await symemeio.balanceOf(user.address)).to.be.equal(netAmount);
+      expect(await mbToken.totalSupply()).to.be.equal(
+        initialUserMbTokenBalance.sub(swapAmountTest)
+      );
+    });
   });
 
   describe("Roles", async function () {
