@@ -19,7 +19,7 @@ interface IGateway {
 }
 
 /// @notice The modified Escrow contract to work with Gateway
-contract Escrow is Initializable, AccessControlEnumerableUpgradeable {
+contract EscrowV2 is Initializable, AccessControlEnumerableUpgradeable {
     address public gatewayAddress;
     address public nativeTokenAddress;
     address public treasureAddress;
@@ -40,8 +40,6 @@ contract Escrow is Initializable, AccessControlEnumerableUpgradeable {
     event SetThresholdAmount(uint256 thresholdAmount);
     event TreasureChanged(address oldTreasure, address newTreasure);
     event WithdrawERC20(address token, address to, uint256 amount);
-    event SetPeriodLimit(uint256 period);
-    event SetPeriodMaxAmount(uint256 maxAmount);
 
     function initialize(
         address _gatewayAddress,
@@ -123,16 +121,12 @@ contract Escrow is Initializable, AccessControlEnumerableUpgradeable {
         uint256 _periodLimit
     ) external onlyRole(ADMIN_ROLE) {
         periodLimit = _periodLimit;
-
-        emit SetPeriodLimit(periodLimit);
     }
 
     function setPeriodMaxAmount(
         uint256 _maxAmount
     ) external onlyRole(ADMIN_ROLE) {
         periodMaxAmount = _maxAmount;
-
-        emit SetPeriodMaxAmount(periodMaxAmount);
     }
 
     function withdrawERC20(
