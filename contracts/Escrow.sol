@@ -79,7 +79,7 @@ contract Escrow is Initializable, AccessControlEnumerableUpgradeable {
             ? requiredAmount
             : escrowBalance;
 
-        checkRuleSet(amount);
+        checkLimits(amount);
 
         IERC20(nativeTokenAddress).approve(gatewayAddress, amount);
         IGateway(gatewayAddress).deposit(amount);
@@ -144,10 +144,10 @@ contract Escrow is Initializable, AccessControlEnumerableUpgradeable {
         emit WithdrawERC20(token, treasureAddress, amount);
     }
 
-    function checkRuleSet(uint256 amount) internal {
+    function checkLimits(uint256 amount) internal {
         if (!hasRole(ADMIN_ROLE, msg.sender)) {
-            periodDepositedAmount += amount;
             if (block.timestamp - periodStart <= periodLimit) {
+                periodDepositedAmount += amount;
                 require(
                     periodDepositedAmount <= periodMaxAmount,
                     "Period threshold is exceeded"
