@@ -19,7 +19,7 @@ interface IGateway {
 }
 
 /// @notice The modified Escrow contract to work with Gateway
-contract EscrowV2 is Initializable, AccessControlEnumerableUpgradeable {
+contract Escrow is Initializable, AccessControlEnumerableUpgradeable {
     address public gatewayAddress;
     address public nativeTokenAddress;
     address public treasureAddress;
