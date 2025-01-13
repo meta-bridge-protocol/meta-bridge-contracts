@@ -241,12 +241,10 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
     }
 
     /// @notice Withdraw the chain's native tokens from the contract and transfer them to the treasury.
-    function withdrawETH() external onlyRole(ASSET_MANAGER_ROLE) {
-        uint256 balance = address(this).balance;
-        require(balance > 0, "Gateway: NO_ETH_TO_WITHDRAW");
-        (bool success, ) = treasuryAddress.call{value: balance}("");
-        require(success, "Gateway: ETH_WITHDRAWAL_FAILED");
-        emit WithdrawETH(treasuryAddress, balance);
+    /// @param amount the amount of ETH to withdraw.
+    function withdrawETH(uint256 amount) external onlyRole(ASSET_MANAGER_ROLE) {
+        payable(treasuryAddress).transfer(amount);
+        emit WithdrawETH(treasuryAddress, amount);
     }
 
     /// @notice Withdraw ERC20 tokens from the contract and transfer them to the treasury.
