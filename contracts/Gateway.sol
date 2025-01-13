@@ -2,7 +2,6 @@
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
@@ -75,12 +74,6 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
     /// @param to The address that withdrawn tokens transferred to.
     /// @param amount The amount of tokens withdrawn.
     event WithdrawERC20(address token, address to, uint256 amount);
-
-    /// @notice Event to log the successful withdrawal of an ERC721 token by asset manager.
-    /// @param token The token address that withdrawn.
-    /// @param to The address that withdrawn token transferred to.
-    /// @param tokenId The token id that withdrawn.
-    event WithdrawERC721(address token, address to, uint256 tokenId);
 
     /// @notice Constructs a new Gateway contract.
     constructor(address _admin, address _nativeToken, address _mbToken, address _treasuryAddress) {
@@ -268,13 +261,5 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
         }
         IERC20(token).safeTransfer(treasuryAddress, amount);
         emit WithdrawERC20(token, treasuryAddress, amount);
-    }
-
-    /// @notice Withdraw ERC721 tokens from the contract and transfer them to the treasury.
-    /// @param token the token contract address to withdraw.
-    /// @param tokenId the id of the token to withdraw.
-    function withdrawERC721(address token, uint256 tokenId) external onlyRole(ASSET_MANAGER_ROLE) {
-        IERC721(token).safeTransferFrom(address(this), treasuryAddress, tokenId);
-        emit WithdrawERC721(token, treasuryAddress, tokenId);
     }
 }
