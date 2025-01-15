@@ -1,5 +1,6 @@
 # MetaBridge Contracts
 
+This is our main repository
 MetaBridge is an interchain abstraction layer with a customizable security stack that enables projects to launch multichain tokens or make their existing tokens multichain.
 
 ## Usage
