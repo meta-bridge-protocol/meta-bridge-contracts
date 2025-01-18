@@ -26,9 +26,10 @@ describe("Gateway", function () {
   let lzSendLib: Address;
   let lzReceiveLib: Address;
   let treasury: SignerWithAddress;
+  let assetManager: SignerWithAddress;
   beforeEach(async function () {
     // Deploy mock contracts for MBToken and NativeToken
-    [owner, user, user1, pauser, unPauser, depositor, treasury] =
+    [owner, user, user1, pauser, unPauser, depositor, treasury, assetManager] =
       await ethers.getSigners();
 
     layerZeroEndpoint = await deployMockContract(owner, ILzEndpointV2.abi);
@@ -253,10 +254,7 @@ describe("Gateway", function () {
       await nativeToken
         .connect(depositor)
         .approve(gateway.address, depositAmount);
-      await gateway
-        .connect(depositor)
-        .connect(depositor)
-        .deposit(depositAmount);
+      await gateway.connect(depositor).deposit(depositAmount);
       await mbToken.connect(owner).grantRole(MINTER_ROLE, owner.address);
       await mbToken.connect(owner).setGateway(gateway.address);
     });
@@ -287,6 +285,60 @@ describe("Gateway", function () {
 
       expect(await nativeToken.balanceOf(gateway.address)).to.be.equal(
         depositAmount.sub(withdrawNativeAmount)
+      );
+    });
+
+    it("should allow assetManager role withdraw erc20 successfully", async () => {
+      const mintAmount = ethers.utils.parseUnits("100", 18);
+
+      const withdrawAmount = ethers.utils.parseUnits("5", "18");
+      await gateway
+        .connect(owner)
+        .grantRole(await gateway.ASSET_MANAGER_ROLE(), assetManager.address);
+
+      await expect(
+        gateway
+          .connect(owner)
+          .withdrawERC20(nativeToken.address, withdrawAmount)
+      ).to.be.revertedWithCustomError(
+        gateway,
+        "AccessControlUnauthorizedAccount"
+      );
+
+      await expect(
+        gateway
+          .connect(assetManager)
+          .withdrawERC20(nativeToken.address, withdrawAmount)
+      ).revertedWith("Gateway: REQUESTED_AMOUNT_EXCEEDS_SURPLUS_BALANCE");
+
+      await nativeToken.connect(owner).mint(gateway.address, mintAmount);
+
+      expect(await nativeToken.balanceOf(gateway.address)).to.be.equal(
+        mintAmount.add(depositAmount)
+      );
+
+      expect(await nativeToken.balanceOf(treasury.address)).to.be.equal(0);
+
+      await gateway
+        .connect(assetManager)
+        .withdrawERC20(nativeToken.address, withdrawAmount);
+
+      expect(await nativeToken.balanceOf(treasury.address)).to.be.equal(
+        withdrawAmount
+      );
+    });
+
+    it("should not allow non assetManager role withdraw nativeAmount successfully", async () => {
+      const withdrawAmount = ethers.utils.parseUnits("1", "18");
+      await gateway
+        .connect(owner)
+        .grantRole(await gateway.ASSET_MANAGER_ROLE(), assetManager.address);
+
+      await expect(
+        gateway.connect(owner).withdrawETH(withdrawAmount)
+      ).to.be.revertedWithCustomError(
+        gateway,
+        "AccessControlUnauthorizedAccount"
       );
     });
 
