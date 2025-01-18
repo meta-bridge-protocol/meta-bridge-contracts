@@ -51,7 +51,8 @@ describe("Escrow", () => {
     gateway = await Gateway.deploy(
       owner.address,
       nativeToken.address,
-      mbToken.address
+      mbToken.address,
+      treasure.address
     );
     await gateway.deployed();
 

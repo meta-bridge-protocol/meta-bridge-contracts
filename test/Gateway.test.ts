@@ -25,9 +25,10 @@ describe("Gateway", function () {
   let layerZeroEndpoint: MockContract;
   let lzSendLib: Address;
   let lzReceiveLib: Address;
+  let treasury: SignerWithAddress;
   beforeEach(async function () {
     // Deploy mock contracts for MBToken and NativeToken
-    [owner, user, user1, pauser, unPauser, depositor] =
+    [owner, user, user1, pauser, unPauser, depositor, treasury] =
       await ethers.getSigners();
 
     layerZeroEndpoint = await deployMockContract(owner, ILzEndpointV2.abi);
@@ -59,7 +60,8 @@ describe("Gateway", function () {
     gateway = await Gateway.deploy(
       owner.address,
       nativeToken.address,
-      mbToken.address
+      mbToken.address,
+      treasury.address
     );
     await gateway.deployed();
 

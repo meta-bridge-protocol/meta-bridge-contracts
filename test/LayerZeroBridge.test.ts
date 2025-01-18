@@ -74,7 +74,8 @@ describe("LayerZeroBridge", () => {
     gateway = await Gateway.deploy(
       admin.address,
       nativeToken.address,
-      bridgeToken.address
+      bridgeToken.address,
+      treasury.address
     );
     await gateway.deployed();
 
@@ -88,14 +89,16 @@ describe("LayerZeroBridge", () => {
     gateway1 = await Gateway.deploy(
       admin.address,
       nativeToken.address,
-      bridgeToken.address
+      bridgeToken.address,
+      treasury.address
     );
     await gateway1.deployed();
 
     gateWayBurnable = await Gateway.deploy(
       admin.address,
       burnableToken.address,
-      bridgeToken.address
+      bridgeToken.address,
+      treasury.address
     );
 
     await gateWayBurnable.deployed();

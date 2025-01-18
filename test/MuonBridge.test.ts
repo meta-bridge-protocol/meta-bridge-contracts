@@ -66,21 +66,22 @@ describe("MuonBridge", () => {
       owner: tssSig["result"]["signatures"][0]["owner"],
       nonce: tssSig["result"]["data"]["init"]["nonceAddress"],
     };
-    await bridge.connect(user).claim(
-      user.address, 
-      amount, 
-      fromChain,
-      toChain,
-      tokenId,
-      txId,
-      reqId,
-      sig
-    )
+    await bridge
+      .connect(user)
+      .claim(
+        user.address,
+        amount,
+        fromChain,
+        toChain,
+        tokenId,
+        txId,
+        reqId,
+        sig
+      );
   };
 
   before(async () => {
-    [admin, tokenAdder, user, treasury] =
-      await ethers.getSigners();
+    [admin, tokenAdder, user, treasury] = await ethers.getSigners();
   });
 
   beforeEach(async () => {
@@ -95,12 +96,9 @@ describe("MuonBridge", () => {
 
     const mbTokenFactory = await ethers.getContractFactory("MBToken");
 
-    mbToken = await mbTokenFactory.connect(admin).deploy(
-      "MBToken",
-      "mbToken",
-      lzEndpoint.address,
-      admin.address
-    );
+    mbToken = await mbTokenFactory
+      .connect(admin)
+      .deploy("MBToken", "mbToken", lzEndpoint.address, admin.address);
     await mbToken.deployed();
 
     const NativeToken = await ethers.getContractFactory("TestToken");
@@ -113,17 +111,15 @@ describe("MuonBridge", () => {
     gateway = await Gateway.deploy(
       admin.address,
       nativeToken.address,
-      mbToken.address
+      mbToken.address,
+      treasury.address
     );
     await gateway.deployed();
 
     await mbToken.connect(admin).setGateway(gateway.address);
 
     const Muon = await ethers.getContractFactory("MuonClient");
-    muon = await Muon.connect(admin).deploy(
-      muonAppId,
-      muonPublicKey
-    );
+    muon = await Muon.connect(admin).deploy(muonAppId, muonPublicKey);
     await muon.deployed();
 
     const BridgeFactory = await ethers.getContractFactory("MuonBridge");
@@ -136,7 +132,9 @@ describe("MuonBridge", () => {
       .connect(admin)
       .grantRole(await bridge.TOKEN_ADDER_ROLE(), tokenAdder.address);
 
-    await mbToken.connect(admin).grantRole(mbToken.MINTER_ROLE(), bridge.address);
+    await mbToken
+      .connect(admin)
+      .grantRole(mbToken.MINTER_ROLE(), bridge.address);
 
     await bridge
       .connect(tokenAdder)
@@ -150,7 +148,7 @@ describe("MuonBridge", () => {
         false
       );
   });
-  
+
   describe("Bridge", async function () {
     it("Should bridge successfully", async function () {
       const toChain = 42161;
@@ -158,14 +156,12 @@ describe("MuonBridge", () => {
       expect(await nativeToken.balanceOf(bridge.address)).eq(0);
       expect(await bridge.lastTxId()).eq(0);
       await nativeToken.connect(user).approve(bridge.address, ONE.mul(10));
-      await bridge.connect(user).send(
-        nativeToken.address, 
-        toChain, 
-        ONE.mul(10),
-         0, 
-         "0x", 
-        {lzTokenFee: 0, nativeFee: 0}
-      );
+      await bridge
+        .connect(user)
+        .send(nativeToken.address, toChain, ONE.mul(10), 0, "0x", {
+          lzTokenFee: 0,
+          nativeFee: 0,
+        });
       expect(await nativeToken.balanceOf(user.address)).eq(ONE.mul(100 - 10));
       expect(await nativeToken.balanceOf(treasury.address)).eq(ONE.mul(10));
       expect(await nativeToken.balanceOf(bridge.address)).eq(0);
@@ -179,7 +175,7 @@ describe("MuonBridge", () => {
         ONE.mul(10),
         await getChainId(),
         toChain,
-        user.address
+        user.address,
       ]);
     });
 
@@ -191,7 +187,14 @@ describe("MuonBridge", () => {
       expect(await nativeToken.balanceOf(bridge.address)).eq(0);
       expect(await gateway.nativeToken()).eq(nativeToken.address);
       expect(await nativeToken.balanceOf(gateway.address)).eq(0);
-      const sig = await getDummySig(1, 1, amount, fromChain, toChain, user.address);
+      const sig = await getDummySig(
+        1,
+        1,
+        amount,
+        fromChain,
+        toChain,
+        user.address
+      );
       await claim(user, sig);
       expect(await nativeToken.balanceOf(user.address)).eq(ONE.mul(100));
       expect(await nativeToken.balanceOf(bridge.address)).eq(0);
@@ -202,7 +205,6 @@ describe("MuonBridge", () => {
       expect(await bridge.claimedTxs(fromChain, 1)).eq(true);
       expect(await bridge.claimedTxs(fromChain, 2)).eq(false);
 
-
       expect(await nativeToken.balanceOf(admin.address)).eq(0);
       await nativeToken.connect(admin).mint(admin.address, ONE.mul(1000));
       expect(await nativeToken.balanceOf(admin.address)).eq(ONE.mul(1000));
@@ -212,22 +214,34 @@ describe("MuonBridge", () => {
       await gateway.connect(admin).deposit(ONE.mul(300));
 
       expect(await nativeToken.balanceOf(gateway.address)).eq(ONE.mul(300));
-      expect(await nativeToken.balanceOf(admin.address)).eq(ONE.mul(1000 - 300));
+      expect(await nativeToken.balanceOf(admin.address)).eq(
+        ONE.mul(1000 - 300)
+      );
 
-      const sig2 = await getDummySig(2, 1, amount, fromChain, toChain, user.address);
+      const sig2 = await getDummySig(
+        2,
+        1,
+        amount,
+        fromChain,
+        toChain,
+        user.address
+      );
 
       await claim(user, sig2);
-      
-      expect(await nativeToken.balanceOf(user.address)).eq(ONE.mul(100).add(amount));
+
+      expect(await nativeToken.balanceOf(user.address)).eq(
+        ONE.mul(100).add(amount)
+      );
       expect(await nativeToken.balanceOf(bridge.address)).eq(0);
-      expect(await nativeToken.balanceOf(gateway.address)).eq(ONE.mul(300).sub(amount));
+      expect(await nativeToken.balanceOf(gateway.address)).eq(
+        ONE.mul(300).sub(amount)
+      );
       expect(await mbToken.balanceOf(bridge.address)).eq(0);
       expect(await mbToken.balanceOf(user.address)).eq(amount);
       expect(await mbToken.balanceOf(gateway.address)).eq(amount);
       expect(await mbToken.totalSupply()).eq(amount.mul(2));
       expect(await bridge.lastTxId()).eq(0);
       expect(await bridge.claimedTxs(fromChain, 2)).eq(true);
-      
     });
   });
 });
