@@ -69,6 +69,18 @@ const networks: { [networkName: string]: HttpNetworkUserConfig } = {
     chainId: 43113,
     accounts,
   },
+  base: {
+    eid: EndpointId.BASE_V2_MAINNET,
+    url: "https://rpc.ankr.com/base",
+    chainId: 8453,
+    accounts,
+  },
+  sonic: {
+    eid: EndpointId.SONIC_V2_MAINNET,
+    url: "https://rpc.soniclabs.com",
+    chainId: 146,
+    accounts,
+  },
 };
 
 const config: HardhatUserConfig = {
@@ -125,6 +137,8 @@ const config: HardhatUserConfig = {
       arbitrumSepolia: process.env.ARBSCAN_KEY || "",
       avalanche: process.env.AVALANCHE_KEY || "",
       ftm: process.env.FTMSCAN_KEY || "",
+      base: process.env.BASE_SCAN || "",
+      sonic: process.env.SONIC_SCAN || "",
     },
     customChains: [
       {
@@ -150,6 +164,22 @@ const config: HardhatUserConfig = {
           apiURL: "https://api-sepolia.arbiscan.io/api",
           browserURL: "https://sepolia.arbiscan.io/",
         },
+      },
+      {
+        network: "base",
+        chainId: 8453,
+        urls: {
+          apiURL: `https://api.basescan.org/api`,
+          browserURL: "https://basescan.org/",
+        },
+      },
+      {
+        network: "sonic",
+        chainId: 146,
+        urls: {
+          apiURL: "https://api.sonicscan.org/api",
+          browserURL: "https://sonicscan.org"
+        }
       },
     ],
   },

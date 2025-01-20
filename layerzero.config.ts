@@ -2,45 +2,35 @@ import { EndpointId } from '@layerzerolabs/lz-definitions'
 
 import type { OAppOmniGraphHardhat, OmniPointHardhat } from '@layerzerolabs/toolbox-hardhat'
 
-const bsctestContract: OmniPointHardhat = {
-    eid: EndpointId.BSC_V2_TESTNET,
-    contractName: 'MetaLUV',
+const baseContract: OmniPointHardhat = {
+    eid: EndpointId.BASE_V2_MAINNET,
+    contractName: 'MetaSYME',
 }
 
-const fujiContract: OmniPointHardhat = {
-    eid: EndpointId.AVALANCHE_V2_TESTNET,
-    contractName: 'MetaLUV',
-}
-
-const polygonContract: OmniPointHardhat = {
-  eid: EndpointId.POLYGON_V2_MAINNET,
-  contractName: 'MetaDEUS',
-}
-
-const fantomContract: OmniPointHardhat = {
-  eid: EndpointId.FANTOM_V2_MAINNET,
-  contractName: 'MetaDEUS',
+const sonicContract: OmniPointHardhat = {
+    eid: EndpointId.SONIC_V2_MAINNET,
+    contractName: 'MetaSYME',
 }
 
 const config: OAppOmniGraphHardhat = {
     contracts: [
         {
-            contract: fantomContract,
+            contract: baseContract,
         },
         {
-            contract: polygonContract,
+            contract: sonicContract,
         },
     ],
     connections: [
         {
-            from: fantomContract,
-            to: polygonContract,
+            from: baseContract,
+            to: sonicContract,
             config: {
                 // Required Send Library Address on Sepolia
-                sendLibrary: "0xC17BaBeF02a937093363220b0FB57De04A535D5E",
+                sendLibrary: "0xB5320B0B3a13cC860893E2Bd79FCd7e13484Dda2",
                 receiveLibraryConfig: {
                   // Required Receive Library Address on Sepolia
-                  receiveLibrary: "0xe1Dd69A2D08dF4eA6a30a91cC061ac70F98aAbe3",
+                  receiveLibrary: "0xc70AB6f32772f59fBfc23889Caf4Ba3376C84bAf",
                   // Optional Grace Period for Switching Receive Library Address on Sepolia
                   gracePeriod: BigInt(0),
                 },
@@ -85,12 +75,12 @@ const config: OAppOmniGraphHardhat = {
             }
         },
         {
-            from: polygonContract,
-            to: fantomContract,
+            from: sonicContract,
+            to: baseContract,
             config: {
-                sendLibrary: "0x6c26c61a97006888ea9E4FA36584c7df57Cd9dA3",
+                sendLibrary: "0xC39161c743D0307EB9BCc9FEF03eeb9Dc4802de7",
                 receiveLibraryConfig: {
-                  receiveLibrary: "0x1322871e4ab09Bc7f5717189434f97bBD9546e95",
+                  receiveLibrary: "0xe1844c5D63a9543023008D332Bd3d2e6f1FE1043",
                   gracePeriod: BigInt(0),
                 },
                 // Optional Send Configuration

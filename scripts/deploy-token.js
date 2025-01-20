@@ -8,7 +8,7 @@ function sleep(milliseconds) {
 async function main() {
 
   const args = [
-    100000,
+    "1000000000000000000000",
     "Symemeio",
     "SYME"
   ]
