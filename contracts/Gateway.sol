@@ -19,12 +19,14 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
 
     address public nativeToken;
     address public mbToken;
-    uint256 public periodLimit;
-    uint256 public periodStart;
-    uint256 public periodMaxAmount;
-    uint256 public periodMintedAmount;
-    uint32 public feePercent;
-    uint32 public feeScale;
+    uint256 public periodLimit; // defines the period length (FIXME: name)
+    uint256 public periodStart; // period starts with a swap (xx)
+    uint256 public periodMaxAmount; // how many tokens are convertible per period
+    uint256 public periodMintedAmount; // counter: counts the numnber of native tokens minted in this period
+    uint32 public feePercent; // % fee ( in this version, it's a burn fee -- less native tokens are received than mbtokens )
+    uint32 public feeScale; //   scale number to scale feePercent in decimals
+    //@notice: feePercent = 2 and feescale = 100 leads to an burn percentage 2/100;
+    // feePercent = 1 and feescale = 50 also leads to an burn percentage 2/100;
 
     /// @notice Event to log the successful token swap.
     /// @param from The address that initiated the swap.
@@ -53,7 +55,7 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
         periodStart = block.timestamp;
         nativeToken = _nativeToken;
         mbToken = _mbToken;
-        feeScale = 1;
+        feeScale = 100;
     }
 
     /// @notice Swaps a specified amount of mb tokens to native tokens.
@@ -98,6 +100,10 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
         feeScale = _scale;
     }
 
+// adminWithdraw is typically multi-sig roled, it enables admin to withdraw any amount of either mbToken or native tokens
+// this function is mainly useful if a bridge tech is hacked or halted, and a new solution will be deployed with metabridge
+// (then this gateway is "killed" and replaced with another one; the native tokens must then be withdrawn)
+// note that if the gateway is paused, admins can still withdraw
     function adminWithdraw(
         uint256 amount,
         address _to,
@@ -111,6 +117,8 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
         }
     }
 
+// this is the specific implemntation for Symemeio
+// returns the maximum swapable amount (given per period limits -- taking max supply of native token on the chain )
     function swappableAmount() public view returns (uint256) {
         uint256 supply = Symemeio(nativeToken).maxSupply() -
             Symemeio(nativeToken).totalSupply();
@@ -147,8 +155,11 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
         require(amount_ == receivedAmount, "Gateway: INVALID_RECEIVED_AMOUNT");
 
         uint256 maxClaimableAmount = swappableAmount();
+
+        // the number of native tokens minted are equal to the number of mbTokens bridged (and received by the gateway) minus the burn fee
         uint256 netAmount = amount_ - ((amount_ * feePercent) / feeScale);
 
+        // all mbTokens swapped are burned, while the net (after fee) amount of native tokens are minted to the user wallet
         if (netAmount <= maxClaimableAmount) {
             ERC20Burnable(mbToken).burn(amount_);
         } else {
