@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: MIT
+// This gateway is for all destination chains with the newly deployed mintable-burnable Symemeio
+// on the original chain (BASE), we use a different gateway contract, see ... SourceGateway.sol !!FIXME!! ?
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
