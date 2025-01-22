@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: MIT
+// This token is the newly deployed token on all destination chains —— the original token was deployed on Base and is not mintable-burnable
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
