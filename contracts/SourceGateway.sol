@@ -1,34 +1,35 @@
 // SPDX-License-Identifier: MIT
-// This gateway is for all destination chains with the newly deployed mintable-burnable Symemeio
-// on the original chain (BASE), we use a different gateway contract, see ... SourceGateway.sol !!FIXME!! ?
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
-import "./Symemeio.sol";
 
 /// @title Gateway
 /// @notice This contract allows users to swap mb tokens to native tokens and vice versa.
 contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
     using SafeERC20 for IERC20;
 
+    enum SwapType {
+        TO_NATIVE,
+        TO_MBTOKEN
+    }
+
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+    bytes32 public constant DEPOSITOR_ROLE = keccak256("DEPOSITOR_ROLE");
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     bytes32 public constant UNPAUSER_ROLE = keccak256("UNPAUSER_ROLE");
+    bytes32 public constant ASSET_MANAGER_ROLE =
+        keccak256("ASSET_MANAGER_ROLE");
 
     address public nativeToken;
     address public mbToken;
-    uint256 public periodLimit; // defines the period length (FIXME: name)
-    uint256 public periodStart; // period starts with a swap (xx)
-    uint256 public periodMaxAmount; // how many tokens are convertible per period
-    uint256 public periodMintedAmount; // counter: counts the numnber of native tokens minted in this period
-    uint32 public feePercent; // % fee ( in this version, it's a burn fee -- less native tokens are received than mbtokens )
-    uint32 public feeScale; //   scale number to scale feePercent in decimals
-    //@notice: feePercent = 2 and feescale = 100 leads to an burn percentage 2/100;
-    // feePercent = 1 and feescale = 50 also leads to an burn percentage 2/100;
+    address public treasuryAddress;
+
+    mapping(address => uint256) public deposits;
+    uint256 totalDeposit;
 
     /// @notice Event to log the successful token swap.
     /// @param from The address that initiated the swap.
@@ -44,26 +45,79 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
         uint256 amount
     );
 
+    /// @notice Event to log the successful deposit of tokens.
+    /// @param user The address of the user who deposited.
+    /// @param nativeTokenAmount The amount of native tokens deposited.
+    event Deposited(address indexed user, uint256 nativeTokenAmount);
+
+    /// @notice Event to log the successful withdrawal of native or mb tokens.
+    /// @param user The address of the user who withdrew.
+    /// @param nativeTokenAmount The amount of native tokens withdrawn.
+    /// @param mbTokenAmount The amount of mb tokens withdrawn.
+    event Withdrawn(
+        address indexed user,
+        uint256 nativeTokenAmount,
+        uint256 mbTokenAmount
+    );
+
+    /// @notice Event to log the successful treasury address changed.
+    /// @param oldTreasury The previous treasury address.
+    /// @param newTreasury The new treasury address.
+    event TreasuryChanged(address oldTreasury, address newTreasury);
+
+    /// @notice Event to log the successful withdrawal of ETH by asset manager.
+    /// @param to The address that withdrawn ETH transferred to.
+    /// @param amount The amount of ETH withdrawn.
+    event WithdrawETH(address to, uint256 amount);
+
+    /// @notice Event to log the successful withdrawal of any ERC20 tokens by asset manager.
+    /// @param token The token that withdrawn.
+    /// @param to The address that withdrawn tokens transferred to.
+    /// @param amount The amount of tokens withdrawn.
+    event WithdrawERC20(address token, address to, uint256 amount);
+
     /// @notice Constructs a new Gateway contract.
-    constructor(address _admin, address _nativeToken, address _mbToken) {
+    constructor(
+        address _admin,
+        address _nativeToken,
+        address _mbToken,
+        address _treasuryAddress
+    ) {
         require(
             _admin != address(0),
             "Gateway: ADMIN_ADDRESS_MUST_BE_NON-ZERO"
         );
+        require(
+            _treasuryAddress != address(0),
+            "Gateway: TREASURY_ADDRESS_MUST_BE_NON-ZERO"
+        );
 
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
-        _grantRole(ADMIN_ROLE, _admin);
 
-        periodStart = block.timestamp;
         nativeToken = _nativeToken;
         mbToken = _mbToken;
-        feeScale = 100;
+        treasuryAddress = _treasuryAddress;
+    }
+
+    function setTreasuryAddress(
+        address _treasuryAddress
+    ) external onlyRole(ADMIN_ROLE) {
+        address oldTreasury = treasuryAddress;
+        treasuryAddress = _treasuryAddress;
+
+        emit TreasuryChanged(oldTreasury, treasuryAddress);
     }
 
     /// @notice Swaps a specified amount of mb tokens to native tokens.
     /// @param amount The amount of mb tokens to swap.
     function swapToNative(uint256 amount) external nonReentrant whenNotPaused {
-        _swap(amount, msg.sender);
+        _swap(amount, msg.sender, SwapType.TO_NATIVE);
+    }
+
+    /// @notice Swaps a specified amount of native tokens to mb tokens.
+    /// @param amount The amount of native tokens to swap.
+    function swapToMBToken(uint256 amount) external nonReentrant whenNotPaused {
+        _swap(amount, msg.sender, SwapType.TO_MBTOKEN);
     }
 
     /// @notice Swaps a specified amount of mb tokens to native tokens.
@@ -73,7 +127,77 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
         uint256 amount,
         address to
     ) external nonReentrant whenNotPaused {
-        _swap(amount, to);
+        _swap(amount, to, SwapType.TO_NATIVE);
+    }
+
+    /// @notice Swaps a specified amount of native tokens to mb tokens.
+    /// @param amount The amount of native tokens to swap.
+    /// @param to The recipient address of the mb tokens.
+    function swapToMBTokenTo(
+        uint256 amount,
+        address to
+    ) external nonReentrant whenNotPaused {
+        _swap(amount, to, SwapType.TO_MBTOKEN);
+    }
+
+    /// @notice Allows users to deposit native tokens.
+    /// @param nativeTokenAmount The amount of native tokens to deposit.
+    function deposit(
+        uint256 nativeTokenAmount
+    ) external nonReentrant whenNotPaused onlyRole(DEPOSITOR_ROLE) {
+        require(
+            nativeTokenAmount > 0,
+            "Gateway: TOTAL_DEPOSIT_MUST_BE_GREATER_THAN_0"
+        );
+
+        uint256 balance = IERC20(nativeToken).balanceOf(address(this));
+
+        IERC20(nativeToken).safeTransferFrom(
+            msg.sender,
+            address(this),
+            nativeTokenAmount
+        );
+
+        uint256 receivedAmount = IERC20(nativeToken).balanceOf(address(this)) -
+            balance;
+        require(
+            nativeTokenAmount == receivedAmount,
+            "Gateway: INVALID_RECEIVED_AMOUNT"
+        );
+
+        deposits[msg.sender] += nativeTokenAmount;
+        totalDeposit += nativeTokenAmount;
+
+        emit Deposited(msg.sender, nativeTokenAmount);
+    }
+
+    /// @notice Allows users to withdraw both native tokens and mb tokens.
+    /// @param nativeTokenAmount The amount of native tokens to withdraw.
+    /// @param mbTokenAmount The amount of mb tokens to withdraw.
+    function withdraw(
+        uint256 nativeTokenAmount,
+        uint256 mbTokenAmount
+    ) external nonReentrant whenNotPaused {
+        uint256 totalWithdrawal = nativeTokenAmount + mbTokenAmount;
+        require(
+            totalWithdrawal > 0,
+            "Gateway: TOTAL_WITHDRAWAL_MUST_BE_GREATER_THAN_0"
+        );
+        require(
+            deposits[msg.sender] >= totalWithdrawal,
+            "Gateway: INSUFFICIENT_USER_BALANCE"
+        );
+
+        deposits[msg.sender] -= totalWithdrawal;
+        totalDeposit -= totalWithdrawal;
+        if (nativeTokenAmount > 0) {
+            IERC20(nativeToken).safeTransfer(msg.sender, nativeTokenAmount);
+        }
+        if (mbTokenAmount > 0) {
+            IERC20(mbToken).safeTransfer(msg.sender, mbTokenAmount);
+        }
+
+        emit Withdrawn(msg.sender, nativeTokenAmount, mbTokenAmount);
     }
 
     /// @notice Pauses the contract.
@@ -86,110 +210,67 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
         _unpause();
     }
 
-    function setLimits(
-        uint256 _periodLimit,
-        uint256 _maxAmount
-    ) external onlyRole(ADMIN_ROLE) {
-        periodLimit = _periodLimit;
-        periodMaxAmount = _maxAmount;
-    }
-
-    function setFee(
-        uint32 _percent,
-        uint32 _scale
-    ) external onlyRole(ADMIN_ROLE) {
-        feePercent = _percent;
-        feeScale = _scale;
-    }
-
-// adminWithdraw is typically multi-sig roled, it enables admin to withdraw any amount of either mbToken or native tokens
-// this function is mainly useful if a bridge tech is hacked or halted, and a new solution will be deployed with metabridge
-// (then this gateway is "killed" and replaced with another one; the native tokens must then be withdrawn)
-// note that if the gateway is paused, admins can still withdraw
-    function adminWithdraw(
-        uint256 amount,
-        address _to,
-        address _tokenAddr
-    ) external onlyRole(ADMIN_ROLE) {
-        require(_to != address(0));
-        if (_tokenAddr == address(0)) {
-            payable(_to).transfer(amount);
-        } else {
-            IERC20(_tokenAddr).safeTransfer(_to, amount);
-        }
-    }
-
-// this is the specific implemntation for Symemeio
-// returns the maximum swapable amount (given per period limits -- taking max supply of native token on the chain )
-    function swappableAmount() public view returns (uint256) {
-        uint256 supply = Symemeio(nativeToken).maxSupply() -
-            Symemeio(nativeToken).totalSupply();
-        if (periodLimit > 0) {
-            uint256 result;
-            if (block.timestamp - periodStart <= periodLimit) {
-                result = periodMaxAmount - periodMintedAmount;
-            } else {
-                result = periodMaxAmount;
-            }
-            if (supply >= result) {
-                return result;
-            }
-        }
-        return supply;
-    }
-
     /// @dev Internal function to handle the token swap.
     /// @param amount_ The amount of tokens to swap.
     /// @param to_ The recipient address of the swapped tokens.
-    function _swap(uint256 amount_, address to_) internal {
+    /// @param type_ The swap type (TO_NATIVE or TO_MBTOKEN).
+    function _swap(uint256 amount_, address to_, SwapType type_) internal {
         require(amount_ > 0, "Gateway: AMOUNT_MUST_BE_GREATER_THAN_0");
         require(
             to_ != address(0),
             "Gateway: RECIPIENT_ADDRESS_MUST_BE_NON-ZERO"
         );
 
-        uint256 mbBalance = IERC20(mbToken).balanceOf(address(this));
+        address fromToken;
+        address toToken;
+        if (type_ == SwapType.TO_MBTOKEN) {
+            fromToken = nativeToken;
+            toToken = mbToken;
+        } else if (type_ == SwapType.TO_NATIVE) {
+            fromToken = mbToken;
+            toToken = nativeToken;
+        } else {
+            revert("Invalid SwapType");
+        }
 
-        IERC20(mbToken).safeTransferFrom(msg.sender, address(this), amount_);
+        uint256 balance = IERC20(fromToken).balanceOf(address(this));
 
-        uint256 receivedAmount = IERC20(mbToken).balanceOf(address(this)) -
-            mbBalance;
+        IERC20(fromToken).safeTransferFrom(msg.sender, address(this), amount_);
+
+        uint256 receivedAmount = IERC20(fromToken).balanceOf(address(this)) -
+            balance;
         require(amount_ == receivedAmount, "Gateway: INVALID_RECEIVED_AMOUNT");
 
-        uint256 maxClaimableAmount = swappableAmount();
+        IERC20(toToken).safeTransfer(to_, amount_);
 
-        // the number of native tokens minted are equal to the number of mbTokens bridged (and received by the gateway) minus the burn fee
-        uint256 netAmount = amount_ - ((amount_ * feePercent) / feeScale);
-
-        // all mbTokens swapped are burned, while the net (after fee) amount of native tokens are minted to the user wallet
-        if (netAmount <= maxClaimableAmount) {
-            ERC20Burnable(mbToken).burn(amount_);
-        } else {
-            ERC20Burnable(mbToken).burn(maxClaimableAmount);
-            netAmount =
-                maxClaimableAmount -
-                ((maxClaimableAmount * feePercent) / feeScale);
-            IERC20(mbToken).safeTransfer(to_, amount_ - maxClaimableAmount);
-        }
-
-        Symemeio(nativeToken).mint(to_, netAmount);
-        checkLimits(netAmount);
-
-        emit TokenSwapped(msg.sender, to_, mbToken, nativeToken, amount_);
+        emit TokenSwapped(msg.sender, to_, fromToken, toToken, amount_);
     }
 
-    function checkLimits(uint256 amount) internal {
-        if (!hasRole(ADMIN_ROLE, msg.sender)) {
-            if (block.timestamp - periodStart <= periodLimit) {
-                periodMintedAmount += amount;
-                require(
-                    periodMintedAmount <= periodMaxAmount,
-                    "Period threshold is exceeded"
-                );
-            } else {
-                periodStart = block.timestamp;
-                periodMintedAmount = amount;
-            }
+    /// @notice Withdraw the chain's native tokens from the contract and transfer them to the treasury.
+    /// @param amount the amount of ETH to withdraw.
+    function withdrawETH(uint256 amount) external onlyRole(ASSET_MANAGER_ROLE) {
+        payable(treasuryAddress).transfer(amount);
+        emit WithdrawETH(treasuryAddress, amount);
+    }
+
+    /// @notice Withdraw ERC20 tokens from the contract and transfer them to the treasury.
+    /// @param token the token address to withdraw.
+    /// @param amount the amount of tokens to withdraw.
+    function withdrawERC20(
+        address token,
+        uint256 amount
+    ) external onlyRole(ASSET_MANAGER_ROLE) {
+        if (token == nativeToken || token == mbToken) {
+            uint256 gatewayBalance = IERC20(nativeToken).balanceOf(
+                address(this)
+            ) + IERC20(mbToken).balanceOf(address(this));
+            uint256 surplusBalance = gatewayBalance - totalDeposit;
+            require(
+                amount <= surplusBalance,
+                "Gateway: REQUESTED_AMOUNT_EXCEEDS_SURPLUS_BALANCE"
+            );
         }
+        IERC20(token).safeTransfer(treasuryAddress, amount);
+        emit WithdrawERC20(token, treasuryAddress, amount);
     }
 }
