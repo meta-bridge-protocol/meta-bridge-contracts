@@ -11,6 +11,10 @@ import {OFTMsgCodec} from "@layerzerolabs/lz-evm-oapp-v2/contracts/oft/libs/OFTM
 import {OFTComposeMsgCodec} from "@layerzerolabs/lz-evm-oapp-v2/contracts/oft/libs/OFTComposeMsgCodec.sol";
 import {IGateway} from "./interfaces/IGateway.sol";
 
+/**
+ * @title MBToken
+ * @notice It is used as the bridge Token through MetaBridge protocol
+ */
 contract MBToken is ERC20Burnable, OFT, AccessControl {
     using OFTMsgCodec for bytes;
     using OFTMsgCodec for bytes32;
@@ -28,11 +32,21 @@ contract MBToken is ERC20Burnable, OFT, AccessControl {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
+    /**
+     *
+     * @param _to Address of recipient
+     * @param _amount  Mint amount
+     * @dev MINTER_ROLE should be granted to the bridge
+     */
     function mint(address _to, uint256 _amount) external onlyRole(MINTER_ROLE) {
         require(address(gateway) != address(0), "Gateway is not set");
         _mint(_to, _amount);
     }
 
+    /**
+     *
+     * @dev Gateway is used in order to swap received tokens on destination
+     */
     function setGateway(address _gateway) external onlyOwner {
         require(_gateway != address(0), "Zero address");
         gateway = IGateway(_gateway);
