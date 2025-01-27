@@ -21,12 +21,12 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
 
     address public nativeToken;
     address public mbToken;
-    uint256 public periodLimit; // defines the period length (FIXME: name)
-    uint256 public periodStart; // period starts with a swap (xx)
+    uint256 public periodLength; // defines the period length (FIXME: name)
+    uint256 public periodStart; // indicates the beginning of the period
     uint256 public periodMaxAmount; // how many tokens are convertible per period
     uint256 public periodMintedAmount; // counter: counts the numnber of native tokens minted in this period
     uint32 public feePercent; // % fee ( in this version, it's a burn fee -- less native tokens are received than mbtokens )
-    uint32 public feeScale; //   scale number to scale feePercent in decimals
+    uint32 public feeScale; // scale number to scale feePercent in decimals
     //@notice: feePercent = 2 and feescale = 100 leads to an burn percentage 2/100;
     // feePercent = 1 and feescale = 50 also leads to an burn percentage 2/100;
 
@@ -86,14 +86,26 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
         _unpause();
     }
 
+    /**
+     *
+     * @param _periodLength Length of the period in seconds
+     * @param _maxAmount Max swappable amount in the period
+     */
     function setLimits(
-        uint256 _periodLimit,
+        uint256 _periodLength,
         uint256 _maxAmount
     ) external onlyRole(ADMIN_ROLE) {
-        periodLimit = _periodLimit;
+        periodLength = _periodLength;
         periodMaxAmount = _maxAmount;
     }
 
+    /**
+     *
+     * @param _percent The numerator of the fee fraction percent/scale
+     * @param _scale The denominator of the fee fraction percent/scale
+     * @dev Fee amount could have each value with the specified percent and scale
+     * e.g. percent 5 and scale 1000 leads to fee 0.5%
+     */
     function setFee(
         uint32 _percent,
         uint32 _scale
@@ -102,10 +114,19 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
         feeScale = _scale;
     }
 
-// adminWithdraw is typically multi-sig roled, it enables admin to withdraw any amount of either mbToken or native tokens
-// this function is mainly useful if a bridge tech is hacked or halted, and a new solution will be deployed with metabridge
-// (then this gateway is "killed" and replaced with another one; the native tokens must then be withdrawn)
-// note that if the gateway is paused, admins can still withdraw
+    /**
+     *
+     * @param amount Amount to be withdrawn
+     * @param _to Destination address
+     * @param _tokenAddr Address of tokens to be withdrawn. Use address(0) for ether
+     * @dev adminWithdraw is typically multi-sig roled, it enables admin to withdraw any amount of
+     * either mbToken, native token, or ethers
+     * this function is mainly useful if a bridge tech is hacked or halted,
+     * and a new solution will be deployed with metabridge
+     * (then this gateway is "killed" and replaced with another one;
+     * the native tokens must then be withdrawn)
+     * note that if the gateway is paused, admins can still withdraw
+     */
     function adminWithdraw(
         uint256 amount,
         address _to,
@@ -119,14 +140,17 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
         }
     }
 
-// this is the specific implemntation for Symemeio
-// returns the maximum swapable amount (given per period limits -- taking max supply of native token on the chain )
+    /**
+     * @dev this is the specific implemntation for Symemeio
+     * @return The maximum swapable amount (given per period limits -- taking max supply of native token on the chain )
+     */
     function swappableAmount() public view returns (uint256) {
         uint256 supply = Symemeio(nativeToken).maxSupply() -
             Symemeio(nativeToken).totalSupply();
-        if (periodLimit > 0) {
+        if (periodLength > 0) {
             uint256 result;
-            if (block.timestamp - periodStart <= periodLimit) {
+            // if the period has not ended yet
+            if (block.timestamp - periodStart <= periodLength) {
                 result = periodMaxAmount - periodMintedAmount;
             } else {
                 result = periodMaxAmount;
@@ -162,6 +186,9 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
         uint256 netAmount = amount_ - ((amount_ * feePercent) / feeScale);
 
         // all mbTokens swapped are burned, while the net (after fee) amount of native tokens are minted to the user wallet
+        // if the net amount is greater than swappable amount,
+        // it will swap as much as swappable amount and calculate the new net amount,
+        // then it will transfer the remaining mbTokens (amount - swappable amount) to the user
         if (netAmount <= maxClaimableAmount) {
             ERC20Burnable(mbToken).burn(amount_);
         } else {
@@ -178,9 +205,14 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
         emit TokenSwapped(msg.sender, to_, mbToken, nativeToken, amount_);
     }
 
+    /**
+     *
+     * @param amount swap amount
+     * @dev It makes sure that defined limitations are met. The limitations are not applied to the admin
+     */
     function checkLimits(uint256 amount) internal {
         if (!hasRole(ADMIN_ROLE, msg.sender)) {
-            if (block.timestamp - periodStart <= periodLimit) {
+            if (block.timestamp - periodStart <= periodLength) {
                 periodMintedAmount += amount;
                 require(
                     periodMintedAmount <= periodMaxAmount,
