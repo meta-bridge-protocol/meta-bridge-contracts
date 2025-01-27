@@ -73,13 +73,15 @@ describe("MbToken", function () {
 
     await symemeio.deployed();
 
-    const gatewayFactory = await ethers.getContractFactory("Gateway");
+    const gatewayFactory = await ethers.getContractFactory(
+      "contracts/Gateway.sol:Gateway"
+    );
 
-    gateway = await gatewayFactory.deploy(
+    gateway = (await gatewayFactory.deploy(
       gatewayAdmin.address,
       symemeio.address,
       mbToken.address
-    );
+    )) as Gateway;
 
     initialPeriodStart = (await ethers.provider.getBlock("latest")).timestamp;
 

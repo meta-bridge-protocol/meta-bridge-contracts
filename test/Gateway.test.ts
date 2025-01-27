@@ -66,13 +66,15 @@ describe("Gateway", function () {
     );
     await symemeio.deployed();
 
-    const gatewayFactory = await ethers.getContractFactory("Gateway");
+    const gatewayFactory = await ethers.getContractFactory(
+      "contracts/Gateway.sol:Gateway"
+    );
 
-    gateway = await gatewayFactory.deploy(
+    gateway = (await gatewayFactory.deploy(
       gatewayAdmin.address,
       symemeio.address,
       mbToken.address
-    );
+    )) as Gateway;
 
     initialPeriodStart = (await ethers.provider.getBlock("latest")).timestamp;
 
@@ -772,14 +774,14 @@ describe("Gateway", function () {
         gateway.connect(user).setLimits(periodLimit, periodMaxAmount)
       ).revertedWithCustomError(gateway, "AccessControlUnauthorizedAccount");
 
-      expect(await gateway.periodLimit()).to.be.equals(0);
+      expect(await gateway.periodLength()).to.be.equals(0);
       expect(await gateway.periodMaxAmount()).to.be.equals(0);
 
       await gateway
         .connect(gatewayAdmin)
         .setLimits(periodLimit, periodMaxAmount);
 
-      expect(await gateway.periodLimit()).to.be.equals(periodLimit);
+      expect(await gateway.periodLength()).to.be.equals(periodLimit);
       expect(await gateway.periodMaxAmount()).to.be.equals(periodMaxAmount);
     });
 
@@ -791,7 +793,7 @@ describe("Gateway", function () {
       ).revertedWithCustomError(gateway, "AccessControlUnauthorizedAccount");
 
       expect(await gateway.feePercent()).to.be.equals(0);
-      expect(await gateway.feeScale()).to.be.equals(1);
+      expect(await gateway.feeScale()).to.be.equals(100);
 
       await gateway.connect(gatewayAdmin).setFee(feePercent, feeScale);
 
