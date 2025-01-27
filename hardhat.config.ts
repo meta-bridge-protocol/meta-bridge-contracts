@@ -45,6 +45,7 @@ const networks: { [networkName: string]: HttpNetworkUserConfig } = {
     accounts,
   },
   polygon: {
+    eid: EndpointId.POLYGON_V2_MAINNET,
     url: `https://polygon.llamarpc.com`,
     chainId: 137,
     accounts,
@@ -57,8 +58,26 @@ const networks: { [networkName: string]: HttpNetworkUserConfig } = {
     accounts,
   },
   ftm: {
+    eid: EndpointId.FANTOM_V2_MAINNET,
     url: `https://rpcapi.fantom.network`,
     chainId: 250,
+    accounts,
+  },
+  fuji: {
+    eid: EndpointId.AVALANCHE_V2_TESTNET,
+    url: `https://avalanche-fuji.blockpi.network/v1/rpc/public`,
+    chainId: 43113,
+    accounts,
+  },
+  base: {
+    url: "https://rpc.ankr.com/base",
+    chainId: 8453,
+    accounts,
+  },
+  sonic: {
+    eid: EndpointId.SONIC_V2_MAINNET,
+    url: "https://rpc.soniclabs.com",
+    chainId: 146,
     accounts,
   },
 };
@@ -78,6 +97,17 @@ const config: HardhatUserConfig = {
             enabled: true,
             runs: 200,
           },
+          // viaIR: true,
+          // outputSelection: {
+          //   "*": {
+          //     "*": [
+          //       // "abi",
+          //       // "evm.bytecode",
+          //       // "evm.deployedBytecode",
+          //       "metadata", // <-- add this
+          //     ]
+          //   },
+          // },
         },
       },
     ],
@@ -106,6 +136,8 @@ const config: HardhatUserConfig = {
       arbitrumSepolia: process.env.ARBSCAN_KEY || "",
       avalanche: process.env.AVALANCHE_KEY || "",
       ftm: process.env.FTMSCAN_KEY || "",
+      base: process.env.BASE_SCAN || "",
+      sonic: process.env.SONIC_SCAN || "",
     },
     customChains: [
       {
@@ -131,6 +163,22 @@ const config: HardhatUserConfig = {
           apiURL: "https://api-sepolia.arbiscan.io/api",
           browserURL: "https://sepolia.arbiscan.io/",
         },
+      },
+      {
+        network: "base",
+        chainId: 8453,
+        urls: {
+          apiURL: `https://api.basescan.org/api`,
+          browserURL: "https://basescan.org/",
+        },
+      },
+      {
+        network: "sonic",
+        chainId: 146,
+        urls: {
+          apiURL: "https://api.sonicscan.org/api",
+          browserURL: "https://sonicscan.org"
+        }
       },
     ],
   },
