@@ -21,7 +21,8 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
     bytes32 public constant DEPOSITOR_ROLE = keccak256("DEPOSITOR_ROLE");
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     bytes32 public constant UNPAUSER_ROLE = keccak256("UNPAUSER_ROLE");
-    bytes32 public constant ASSET_MANAGER_ROLE = keccak256("ASSET_MANAGER_ROLE");
+    bytes32 public constant ASSET_MANAGER_ROLE =
+        keccak256("ASSET_MANAGER_ROLE");
 
     address public nativeToken;
     address public mbToken;
@@ -76,7 +77,12 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
     event WithdrawERC20(address token, address to, uint256 amount);
 
     /// @notice Constructs a new Gateway contract.
-    constructor(address _admin, address _nativeToken, address _mbToken, address _treasuryAddress) {
+    constructor(
+        address _admin,
+        address _nativeToken,
+        address _mbToken,
+        address _treasuryAddress
+    ) {
         require(
             _admin != address(0),
             "Gateway: ADMIN_ADDRESS_MUST_BE_NON-ZERO"
@@ -250,12 +256,19 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
     /// @notice Withdraw ERC20 tokens from the contract and transfer them to the treasury.
     /// @param token the token address to withdraw.
     /// @param amount the amount of tokens to withdraw.
-    function withdrawERC20(address token, uint256 amount) external onlyRole(ASSET_MANAGER_ROLE) {
+    function withdrawERC20(
+        address token,
+        uint256 amount
+    ) external onlyRole(ASSET_MANAGER_ROLE) {
         if (token == nativeToken || token == mbToken) {
-            uint256 gatewayBalance = IERC20(nativeToken).balanceOf(address(this)) +
-                IERC20(mbToken).balanceOf(address(this));
+            uint256 gatewayBalance = IERC20(nativeToken).balanceOf(
+                address(this)
+            ) + IERC20(mbToken).balanceOf(address(this));
             uint256 surplusBalance = gatewayBalance - totalDeposit;
-            require(amount <= surplusBalance, "Gateway: REQUESTED_AMOUNT_EXCEEDS_SURPLUS_BALANCE");
+            require(
+                amount <= surplusBalance,
+                "Gateway: REQUESTED_AMOUNT_EXCEEDS_SURPLUS_BALANCE"
+            );
         }
         IERC20(token).safeTransfer(treasuryAddress, amount);
         emit WithdrawERC20(token, treasuryAddress, amount);
