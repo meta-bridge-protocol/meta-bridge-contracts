@@ -34,26 +34,26 @@ const config: OAppOmniGraphHardhat = {
             from: fantomContract,
             to: polygonContract,
             config: {
-                // Required Send Library Address on Sepolia
+                // Required Send Library Address on Fantom
                 sendLibrary: "0xC17BaBeF02a937093363220b0FB57De04A535D5E",
                 receiveLibraryConfig: {
-                  // Required Receive Library Address on Sepolia
+                  // Required Receive Library Address on Fantom
                   receiveLibrary: "0xe1Dd69A2D08dF4eA6a30a91cC061ac70F98aAbe3",
-                  // Optional Grace Period for Switching Receive Library Address on Sepolia
+                  // Optional Grace Period for Switching Receive Library Address on Fantom
                   gracePeriod: BigInt(0),
                 },
                 // Optional Send Configuration
                 // @dev Controls how the `from` chain sends messages to the `to` chain.
                 sendConfig: {
                   ulnConfig: {
-                    // The number of block confirmations to wait on Sepolia before emitting the message from the source chain (Sepolia).
+                    // The number of block confirmations to wait on Fantom chain before emitting the message from the source chain ("this").
                     confirmations: BigInt(3),
-                    // The address of the DVNs you will pay to verify a sent message on the source chain (Sepolia).
+                    // The address of the DVNs you will pay to verify a sent message on the source chain (Fantom).
                     // The destination tx will wait until ALL `requiredDVNs` verify the message.
                     requiredDVNs: [
                         "0xA3858e2A9860C935Fc9586a617e9b2A674C3e4c8",
                     ],
-                    // The address of the DVNs you will pay to verify a sent message on the source chain (Sepolia).
+                    // The address of the DVNs you will pay to verify a sent message on the source chain (Fantom).
                     // The destination tx will wait until the configured threshold of `optionalDVNs` verify a message.
                     optionalDVNs: [
                     ],
@@ -65,14 +65,14 @@ const config: OAppOmniGraphHardhat = {
                 // @dev Controls how the `from` chain receives messages from the `to` chain.
                 receiveConfig: {
                   ulnConfig: {
-                    // The number of block confirmations to expect from the `to` chain (Sepolia).
+                    // The number of block confirmations to expect from the `to` chain (Fantom).
                     confirmations: BigInt(3),
-                    // The address of the DVNs your `receiveConfig` expects to receive verifications from on the `from` chain (Sepolia).
+                    // The address of the DVNs your `receiveConfig` expects to receive verifications from on the `from` chain ("this").
                     // The `from` chain's OApp will wait until the configured threshold of `requiredDVNs` verify the message.
                     requiredDVNs: [
                         "0xA3858e2A9860C935Fc9586a617e9b2A674C3e4c8",
                     ],
-                    // The address of the `optionalDVNs` you expect to receive verifications from on the `from` chain (Sepolia).
+                    // The address of the `optionalDVNs` you expect to receive verifications from on the `from` chain ("this").
                     // The destination tx will wait until the configured threshold of `optionalDVNs` verify the message.
                     optionalDVNs: [
                     ],
