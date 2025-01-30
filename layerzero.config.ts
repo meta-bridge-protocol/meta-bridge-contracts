@@ -44,6 +44,10 @@ const config: OAppOmniGraphHardhat = {
                 },
                 // Optional Send Configuration
                 // @dev Controls how the `from` chain sends messages to the `to` chain.
+                // @notice these parameters are passed to the layer zero executor ( private repo in this organitation )
+                // these configs are part of the layero protocol —— if we want variable speed,
+                // we will define that in the MuonDNVconfig.sol, which will pass the "dynamic speed config" to the executor
+              
                 sendConfig: {
                   ulnConfig: {
                     // The number of block confirmations to wait on Fantom chain before emitting the message from the source chain ("this").
