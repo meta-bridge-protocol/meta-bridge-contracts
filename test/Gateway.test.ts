@@ -25,6 +25,7 @@ describe("Gateway", function () {
   let pauser: SignerWithAddress;
   let unPauser: SignerWithAddress;
   let mbTokenMinter: SignerWithAddress;
+  let feeTreasury: SignerWithAddress;
   let initialPeriodStart: Number;
   let swappableAmount: BigNumber;
   const initialMaxSupply = ethers.utils.parseUnits("1000", 18);
@@ -33,7 +34,7 @@ describe("Gateway", function () {
   const periodLimit = 864000;
 
   beforeEach(async function () {
-    [owner, user, user1, pauser, unPauser, gatewayAdmin, mbTokenMinter] =
+    [owner, user, user1, pauser, unPauser, gatewayAdmin, mbTokenMinter, feeTreasury] =
       await ethers.getSigners();
 
     layerZeroEndPoint = await deployMockContract(owner, ILzEndpointV2.abi);
@@ -374,7 +375,6 @@ describe("Gateway", function () {
       expect(await symemeio.totalSupply()).to.be.equal(0);
 
       swappableAmount = await gateway.swappableAmount();
-      console.log(swappableAmount);
       expect(swappableAmount).equal(periodMaxAmount);
 
       const amountToSwap =
@@ -390,7 +390,6 @@ describe("Gateway", function () {
         amountToSwap.mul(feePercent).div(feeScale)
       );
 
-      console.log(swappableAmount, netAmount, periodMaxAmount.sub(netAmount));
       expect(swappableAmount).equal(periodMaxAmount.sub(netAmount));
 
       expect(await symemeio.totalSupply()).to.be.equal(netAmount);
@@ -419,7 +418,7 @@ describe("Gateway", function () {
       await gateway.connect(gatewayAdmin).setBurnFee(feePercent, feeScale);
 
       expect(await gateway.burnFee()).to.be.equals(feePercent);
-      expect(await gateway.burnFeeScale).to.be.equals(feeScale);
+      expect(await gateway.burnFeeScale()).to.be.equals(feeScale);
 
       await mbToken.connect(user).approve(gateway.address, swapAmountTest);
 
@@ -609,6 +608,45 @@ describe("Gateway", function () {
       );
     });
 
+    it("Should work with treasuryFee & burnFee", async function () {
+      const swapAmount = ethers.utils.parseUnits("50", 18);
+      const burnFee = 2;
+      const burnFeeScale = 100;
+
+      const treasuryFee = 1;
+      const treasuryFeeScale = 100;
+
+      const totalSupply = await symemeio.totalSupply();
+
+      expect(await gateway.burnFee()).to.be.equal(0);
+      expect(await gateway.burnFeeScale()).to.be.equal(100);
+      expect(await gateway.feeTreasury()).to.be.equal(ethers.constants.AddressZero);
+      expect(await gateway.treasuryFee()).to.be.equal(0);
+      expect(await gateway.treasuryFeeScale()).to.be.equal(100);
+
+      await gateway.connect(gatewayAdmin).setBurnFee(burnFee, burnFeeScale);
+      await gateway.connect(gatewayAdmin).setFeeTreasuryAddress(feeTreasury.address);
+      await gateway.connect(gatewayAdmin).setTreasuryFee(treasuryFee, treasuryFeeScale);
+
+      expect(await symemeio.balanceOf(user.address)).to.be.equal(0);
+      expect(await gateway.burnFee()).to.be.equal(burnFee);
+      expect(await gateway.burnFeeScale()).to.be.equal(burnFeeScale);
+      expect(await gateway.treasuryFee()).to.be.equal(treasuryFee);
+      expect(await gateway.treasuryFeeScale()).to.be.equal(treasuryFeeScale);
+
+      await mbToken.connect(user).approve(gateway.address, swapAmount);
+      await gateway.connect(user).swapToNative(swapAmount);
+
+      expect(await symemeio.balanceOf(user.address)).to.be.equal(ethers.utils.parseUnits("48.5", 18));
+      expect(await symemeio.balanceOf(feeTreasury.address)).to.be.equal(ethers.utils.parseUnits("0.5", 18));
+      expect(await symemeio.totalSupply()).to.be.equal(
+        totalSupply.add(ethers.utils.parseUnits("49", 18))
+      );
+      expect(await mbToken.totalSupply()).to.be.equal(
+        initialUserMbTokenBalance.sub(swapAmount)
+      );
+    });
+
     it("Should work correctly with maximum fee (feePercent = feeScale)", async function () {
       const swapAmountTest = ethers.utils.parseUnits("50", 18);
       const feePercent = 100; // Maximum fee
@@ -795,12 +833,12 @@ describe("Gateway", function () {
       ).revertedWithCustomError(gateway, "AccessControlUnauthorizedAccount");
 
       expect(await gateway.burnFee()).to.be.equals(0);
-      expect(await gateway.burnFeeScale).to.be.equals(100);
+      expect(await gateway.burnFeeScale()).to.be.equals(100);
 
       await gateway.connect(gatewayAdmin).setBurnFee(feePercent, feeScale);
 
       expect(await gateway.burnFee()).to.be.equals(feePercent);
-      expect(await gateway.burnFeeScale).to.be.equals(feeScale);
+      expect(await gateway.burnFeeScale()).to.be.equals(feeScale);
     });
   });
 
