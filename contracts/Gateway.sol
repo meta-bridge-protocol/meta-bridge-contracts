@@ -16,20 +16,38 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
     using SafeERC20 for IERC20;
 
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+    bytes32 public constant FEE_ROLE = keccak256("FEE_ROLE");
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     bytes32 public constant UNPAUSER_ROLE = keccak256("UNPAUSER_ROLE");
 
     address public nativeToken;
     address public mbToken;
-    uint256 public periodLength; // defines the period length (FIXME: name)
+    uint256 public periodLength; // defines the period length
     uint256 public periodStart; // indicates the beginning of the period
     uint256 public periodMaxAmount; // how many tokens are convertible per period
     uint256 public periodMintedAmount; // counter: counts the numnber of native tokens minted in this period
-    uint32 public feePercent; // % fee ( in this version, it's a burn fee -- less native tokens are received than mbtokens )
-    uint32 public feeScale; // scale number to scale feePercent in decimals
-    //@notice: feePercent = 2 and feescale = 100 leads to an burn percentage 2/100;
-    // feePercent = 1 and feescale = 50 also leads to an burn percentage 2/100;
-
+    /**
+     * @notice % fee that will be burnt ( less native tokens are received than mbtokens )
+     * It's used along with burnFeeScale to determine the fee amount that will be burnt
+     */
+    uint32 public burnFee;
+    /**
+     * @notice scale number to scale burnFee in decimals
+     * burnFee = 2 and burnFeescale = 100 leads to burn 2/100 of swap amount;
+     * burnFee = 1 and burnFeescale = 50 also leads to burn 2/100 of swap amount;
+     */
+    uint32 public burnFeeScale;
+    /**
+     * @notice % fee that will be tranferred to the treasury ( less native tokens are received than mbtokens )
+     * It's used along with treasuryFeeScale to determine the fee amount that will be transferred to the treasury
+     */
+    uint32 public treasuryFee;
+    /**
+     * @notice scale number to scale treasuryFee in decimals
+     * treasuryFee = 2 and treasuryFeeScale = 100 leads to transfer 2/100 of swap amount to the treasury;
+     * treasuryFee = 1 and treasuryFeeScale = 50 also leads to transfer 2/100 of swap amount to the treasury;
+     */
+    uint32 public treasuryFeeScale;
     /// @notice Event to log the successful token swap.
     /// @param from The address that initiated the swap.
     /// @param to The address that received the swapped tokens.
@@ -53,11 +71,13 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
 
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
         _grantRole(ADMIN_ROLE, _admin);
+        _grantRole(FEE_ROLE, _admin);
 
         periodStart = block.timestamp;
         nativeToken = _nativeToken;
         mbToken = _mbToken;
-        feeScale = 100;
+        burnFeeScale = 100;
+        treasuryFeeScale = 100;
     }
 
     /// @notice Swaps a specified amount of mb tokens to native tokens.
@@ -101,17 +121,32 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
 
     /**
      *
-     * @param _percent The numerator of the fee fraction percent/scale
-     * @param _scale The denominator of the fee fraction percent/scale
-     * @dev Fee amount could have each value with the specified percent and scale
-     * e.g. percent 5 and scale 1000 leads to fee 0.5%
+     * @param _fee The numerator of the fee fraction fee/scale
+     * @param _scale The denominator of the fee fraction fee/scale
+     * @notice Fee amount could have each value with the specified fee and scale
+     * e.g. fee 5 and scale 1000 leads to the burn fee 0.5%
      */
-    function setFee(
-        uint32 _percent,
+    function setBurnFee(
+        uint32 _fee,
         uint32 _scale
-    ) external onlyRole(ADMIN_ROLE) {
-        feePercent = _percent;
-        feeScale = _scale;
+    ) external onlyRole(FEE_ROLE) {
+        burnFee = _fee;
+        burnFeeScale = _scale;
+    }
+
+    /**
+     *
+     * @param _fee The numerator of the fee fraction fee/scale
+     * @param _scale The denominator of the fee fraction fee/scale
+     * @notice Fee amount could have each value with the specified fee and scale
+     * e.g. fee 5 and scale 1000 leads to treasury fee 0.5%
+     */
+    function setTreasuryFee(
+        uint32 _fee,
+        uint32 _scale
+    ) external onlyRole(FEE_ROLE) {
+        treasuryFee = _fee;
+        treasuryFeeScale = _scale;
     }
 
     /**
@@ -180,23 +215,37 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
             mbBalance;
         require(amount_ == receivedAmount, "Gateway: INVALID_RECEIVED_AMOUNT");
 
-        uint256 maxClaimableAmount = swappableAmount();
+        uint256 maxSwappableAmount = swappableAmount();
 
-        // the number of native tokens minted are equal to the number of mbTokens bridged (and received by the gateway) minus the burn fee
-        uint256 netAmount = amount_ - ((amount_ * feePercent) / feeScale);
+        // the number of native tokens minted are equal to the number of mbTokens bridged (and received by the gateway) minus the ( burn fee + treasury fee )
+        uint256 netAmount = amount_ - ((amount_ * burnFee) / burnFeeScale);
+
+        // the number of native tokens minted are equal to the number of mbTokens bridged (and received by the gateway) minus the ( burn fee + treasury fee )
+        netAmount = amount_ - ((amount_ * treasuryFee) / treasuryFeeScale);
 
         // all mbTokens swapped are burned, while the net (after fee) amount of native tokens are minted to the user wallet
         // if the net amount is greater than swappable amount,
         // it will swap as much as swappable amount and calculate the new net amount,
         // then it will transfer the remaining mbTokens (amount - swappable amount) to the user
-        if (netAmount <= maxClaimableAmount) {
+        if (netAmount <= maxSwappableAmount) {
             ERC20Burnable(mbToken).burn(amount_);
         } else {
-            ERC20Burnable(mbToken).burn(maxClaimableAmount);
+            ERC20Burnable(mbToken).burn(maxSwappableAmount);
+
+            /**
+             * @dev override the net amount
+             * subtract fee amounts from the max swappable amount
+             * netAmount = maxSwappableAmount - ( burnFee + treasuryFee )
+             */
             netAmount =
-                maxClaimableAmount -
-                ((maxClaimableAmount * feePercent) / feeScale);
-            IERC20(mbToken).safeTransfer(to_, amount_ - maxClaimableAmount);
+                maxSwappableAmount -
+                ((maxSwappableAmount * burnFee) / burnFeeScale);
+            netAmount =
+                maxSwappableAmount -
+                ((maxSwappableAmount * treasuryFee) / treasuryFeeScale);
+
+            // Transfer the remaining amount of mbTokens that cannot be swapped to the user
+            IERC20(mbToken).safeTransfer(to_, amount_ - maxSwappableAmount);
         }
 
         Symemeio(nativeToken).mint(to_, netAmount);
