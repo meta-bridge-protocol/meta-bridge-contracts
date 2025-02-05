@@ -359,7 +359,7 @@ describe("Gateway", function () {
       await gateway.connect(gatewayAdmin).setBurnFee(feePercent, feeScale);
 
       expect(await gateway.burnFee()).to.be.equals(feePercent);
-      expect(await gateway.burnFeeScale).to.be.equals(feeScale);
+      expect(await gateway.burnFeeScale()).to.be.equals(feeScale);
 
       await mbToken.connect(user).approve(gateway.address, swapAmountTest);
 
@@ -374,7 +374,7 @@ describe("Gateway", function () {
       expect(await symemeio.totalSupply()).to.be.equal(0);
 
       swappableAmount = await gateway.swappableAmount();
-
+      console.log(swappableAmount);
       expect(swappableAmount).equal(periodMaxAmount);
 
       const amountToSwap =
@@ -389,6 +389,8 @@ describe("Gateway", function () {
       const netAmount = amountToSwap.sub(
         amountToSwap.mul(feePercent).div(feeScale)
       );
+
+      console.log(swappableAmount, netAmount, periodMaxAmount.sub(netAmount));
       expect(swappableAmount).equal(periodMaxAmount.sub(netAmount));
 
       expect(await symemeio.totalSupply()).to.be.equal(netAmount);
