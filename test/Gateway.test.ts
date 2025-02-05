@@ -353,13 +353,13 @@ describe("Gateway", function () {
         .setLimits(periodLimit, periodMaxAmount);
 
       await expect(
-        gateway.connect(user).setFee(feePercent, feeScale)
+        gateway.connect(user).setBurnFee(feePercent, feeScale)
       ).revertedWithCustomError(gateway, "AccessControlUnauthorizedAccount");
 
-      await gateway.connect(gatewayAdmin).setFee(feePercent, feeScale);
+      await gateway.connect(gatewayAdmin).setBurnFee(feePercent, feeScale);
 
-      expect(await gateway.feePercent()).to.be.equals(feePercent);
-      expect(await gateway.feeScale()).to.be.equals(feeScale);
+      expect(await gateway.burnFee()).to.be.equals(feePercent);
+      expect(await gateway.burnFeeScale).to.be.equals(feeScale);
 
       await mbToken.connect(user).approve(gateway.address, swapAmountTest);
 
@@ -411,13 +411,13 @@ describe("Gateway", function () {
         .setLimits(periodLimit, periodMaxAmount);
 
       await expect(
-        gateway.connect(user).setFee(feePercent, feeScale)
+        gateway.connect(user).setBurnFee(feePercent, feeScale)
       ).revertedWithCustomError(gateway, "AccessControlUnauthorizedAccount");
 
-      await gateway.connect(gatewayAdmin).setFee(feePercent, feeScale);
+      await gateway.connect(gatewayAdmin).setBurnFee(feePercent, feeScale);
 
-      expect(await gateway.feePercent()).to.be.equals(feePercent);
-      expect(await gateway.feeScale()).to.be.equals(feeScale);
+      expect(await gateway.burnFee()).to.be.equals(feePercent);
+      expect(await gateway.burnFeeScale).to.be.equals(feeScale);
 
       await mbToken.connect(user).approve(gateway.address, swapAmountTest);
 
@@ -570,7 +570,7 @@ describe("Gateway", function () {
       const feePercent = 1;
       const feeScale = 1000;
 
-      await gateway.connect(gatewayAdmin).setFee(feePercent, feeScale);
+      await gateway.connect(gatewayAdmin).setBurnFee(feePercent, feeScale);
 
       await mbToken.connect(user).approve(gateway.address, swapAmountTest);
 
@@ -592,7 +592,7 @@ describe("Gateway", function () {
       const feePercent = 0; // No fee
       const feeScale = 100;
 
-      await gateway.connect(gatewayAdmin).setFee(feePercent, feeScale);
+      await gateway.connect(gatewayAdmin).setBurnFee(feePercent, feeScale);
 
       await mbToken.connect(user).approve(gateway.address, swapAmountTest);
       await gateway.connect(user).swapToNative(swapAmountTest);
@@ -612,7 +612,7 @@ describe("Gateway", function () {
       const feePercent = 100; // Maximum fee
       const feeScale = 100; // 100% fee scaling
 
-      await gateway.connect(gatewayAdmin).setFee(feePercent, feeScale);
+      await gateway.connect(gatewayAdmin).setBurnFee(feePercent, feeScale);
 
       await mbToken.connect(user).approve(gateway.address, swapAmountTest);
       await gateway.connect(user).swapToNative(swapAmountTest);
@@ -631,7 +631,7 @@ describe("Gateway", function () {
       const feePercent = 50; // 50% fee
       const feeScale = 100; // Scaling factor
 
-      await gateway.connect(gatewayAdmin).setFee(feePercent, feeScale);
+      await gateway.connect(gatewayAdmin).setBurnFee(feePercent, feeScale);
 
       await mbToken.connect(user).approve(gateway.address, swapAmountTest);
       await gateway.connect(user).swapToNative(swapAmountTest);
@@ -652,7 +652,7 @@ describe("Gateway", function () {
 
       await gateway
         .connect(gatewayAdmin)
-        .setFee(feePercent * 100, feeScale * 100);
+        .setBurnFee(feePercent * 100, feeScale * 100);
 
       await mbToken.connect(user).approve(gateway.address, swapAmountTest);
       await gateway.connect(user).swapToNative(swapAmountTest);
@@ -673,7 +673,7 @@ describe("Gateway", function () {
       const feePercent = 10; // 10% fee
       const feeScale = 100; // Scaling factor
 
-      await gateway.connect(gatewayAdmin).setFee(feePercent, feeScale);
+      await gateway.connect(gatewayAdmin).setBurnFee(feePercent, feeScale);
 
       await mbToken.connect(user).approve(gateway.address, swapAmountTest);
       await gateway.connect(user).swapToNative(swapAmountTest);
@@ -694,7 +694,7 @@ describe("Gateway", function () {
 
       await gateway
         .connect(gatewayAdmin)
-        .setFee(feePercent * 100, feeScale * 100);
+        .setBurnFee(feePercent * 100, feeScale * 100);
 
       await mbToken.connect(user).approve(gateway.address, swapAmountTest);
       await gateway.connect(user).swapToNative(swapAmountTest);
@@ -789,16 +789,16 @@ describe("Gateway", function () {
       const feePercent = 1;
       const feeScale = 10;
       await expect(
-        gateway.connect(user).setFee(feePercent, feeScale)
+        gateway.connect(user).setBurnFee(feePercent, feeScale)
       ).revertedWithCustomError(gateway, "AccessControlUnauthorizedAccount");
 
-      expect(await gateway.feePercent()).to.be.equals(0);
-      expect(await gateway.feeScale()).to.be.equals(100);
+      expect(await gateway.burnFee()).to.be.equals(0);
+      expect(await gateway.burnFeeScale).to.be.equals(100);
 
-      await gateway.connect(gatewayAdmin).setFee(feePercent, feeScale);
+      await gateway.connect(gatewayAdmin).setBurnFee(feePercent, feeScale);
 
-      expect(await gateway.feePercent()).to.be.equals(feePercent);
-      expect(await gateway.feeScale()).to.be.equals(feeScale);
+      expect(await gateway.burnFee()).to.be.equals(feePercent);
+      expect(await gateway.burnFeeScale).to.be.equals(feeScale);
     });
   });
 
