@@ -26,28 +26,35 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
     uint256 public periodStart; // indicates the beginning of the period
     uint256 public periodMaxAmount; // how many tokens are convertible per period
     uint256 public periodMintedAmount; // counter: counts the numnber of native tokens minted in this period
+
     /**
      * @notice % fee that will be burnt ( less native tokens are received than mbtokens )
      * It's used along with burnFeeScale to determine the fee amount that will be burnt
      */
     uint32 public burnFee;
+
     /**
      * @notice scale number to scale burnFee in decimals
      * burnFee = 2 and burnFeescale = 100 leads to burn 2/100 of swap amount;
      * burnFee = 1 and burnFeescale = 50 also leads to burn 2/100 of swap amount;
      */
     uint32 public burnFeeScale;
+
     /**
      * @notice % fee that will be tranferred to the treasury ( less native tokens are received than mbtokens )
      * It's used along with treasuryFeeScale to determine the fee amount that will be transferred to the treasury
      */
     uint32 public treasuryFee;
+
     /**
      * @notice scale number to scale treasuryFee in decimals
      * treasuryFee = 2 and treasuryFeeScale = 100 leads to transfer 2/100 of swap amount to the treasury;
      * treasuryFee = 1 and treasuryFeeScale = 50 also leads to transfer 2/100 of swap amount to the treasury;
      */
     uint32 public treasuryFeeScale;
+
+    address public feeTreasury; // The address of treasury that fees will be transferred to
+
     /// @notice Event to log the successful token swap.
     /// @param from The address that initiated the swap.
     /// @param to The address that received the swapped tokens.
@@ -145,8 +152,19 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
         uint32 _fee,
         uint32 _scale
     ) external onlyRole(FEE_ROLE) {
+        require(feeTreasury != address(0), "fee treasury is not set");
         treasuryFee = _fee;
         treasuryFeeScale = _scale;
+    }
+
+    /**
+     *
+     * @param _treasury the address of treasury that fees will be transferred to
+     */
+    function setFeeTreasuryAddress(
+        address _treasury
+    ) external onlyRole(FEE_ROLE) {
+        feeTreasury = _treasury;
     }
 
     /**
@@ -218,10 +236,10 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
         uint256 maxSwappableAmount = swappableAmount();
 
         // the number of native tokens minted are equal to the number of mbTokens bridged (and received by the gateway) minus the ( burn fee + treasury fee )
-        uint256 netAmount = amount_ - ((amount_ * burnFee) / burnFeeScale);
+        uint256 burnFeeAmount = _getBurnFeeAmount(amount_);
+        uint256 treasuryFeeAmount = _getTreasuryFeeAmount(amount_);
 
-        // the number of native tokens minted are equal to the number of mbTokens bridged (and received by the gateway) minus the ( burn fee + treasury fee )
-        netAmount = amount_ - ((amount_ * treasuryFee) / treasuryFeeScale);
+        uint256 netAmount = amount_ - (burnFeeAmount + treasuryFeeAmount);
 
         // all mbTokens swapped are burned, while the net (after fee) amount of native tokens are minted to the user wallet
         // if the net amount is greater than swappable amount,
@@ -230,28 +248,54 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
         if (netAmount <= maxSwappableAmount) {
             ERC20Burnable(mbToken).burn(amount_);
         } else {
-            ERC20Burnable(mbToken).burn(maxSwappableAmount);
-
             /**
-             * @dev override the net amount
-             * subtract fee amounts from the max swappable amount
-             * netAmount = maxSwappableAmount - ( burnFee + treasuryFee )
+             * @dev override fee amounts and net amount based on the max swappable amount
              */
+            burnFeeAmount = _getBurnFeeAmount(maxSwappableAmount);
+            treasuryFeeAmount = _getTreasuryFeeAmount(maxSwappableAmount);
+
             netAmount =
                 maxSwappableAmount -
-                ((maxSwappableAmount * burnFee) / burnFeeScale);
-            netAmount =
-                maxSwappableAmount -
-                ((maxSwappableAmount * treasuryFee) / treasuryFeeScale);
+                (burnFeeAmount + treasuryFeeAmount);
+
+            ERC20Burnable(mbToken).burn(maxSwappableAmount);
 
             // Transfer the remaining amount of mbTokens that cannot be swapped to the user
             IERC20(mbToken).safeTransfer(to_, amount_ - maxSwappableAmount);
         }
 
+        // Mint native tokens (treasury fee) to the treasury address
+        if (treasuryFeeAmount != 0) {
+            Symemeio(nativeToken).mint(feeTreasury, treasuryFeeAmount);
+        }
+        // Mint native tokens to the user address
         Symemeio(nativeToken).mint(to_, netAmount);
-        checkLimits(netAmount);
+
+        _checkLimits(netAmount);
 
         emit TokenSwapped(msg.sender, to_, mbToken, nativeToken, amount_);
+    }
+
+    /**
+     *
+     * @param swapAmount the amount of swap
+     * @dev calculate the fee amount that should be burnt
+     */
+    function _getBurnFeeAmount(
+        uint256 swapAmount
+    ) internal view returns (uint256) {
+        return (swapAmount * burnFee) / burnFeeScale;
+    }
+
+    /**
+     *
+     * @param swapAmount the amount of swap
+     * @dev calculate the fee amount that should be transferred
+     */
+    function _getTreasuryFeeAmount(
+        uint256 swapAmount
+    ) internal view returns (uint256) {
+        return (swapAmount * treasuryFee) / treasuryFeeScale;
     }
 
     /**
@@ -259,7 +303,7 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
      * @param amount swap amount
      * @dev It makes sure that defined limitations are met. The limitations are not applied to the admin
      */
-    function checkLimits(uint256 amount) internal {
+    function _checkLimits(uint256 amount) internal {
         if (!hasRole(ADMIN_ROLE, msg.sender)) {
             if (block.timestamp - periodStart <= periodLength) {
                 periodMintedAmount += amount;
