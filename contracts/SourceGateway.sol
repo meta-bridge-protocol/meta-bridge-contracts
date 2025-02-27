@@ -18,11 +18,40 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
     }
 
     bytes32 public constant DEPOSITOR_ROLE = keccak256("DEPOSITOR_ROLE");
+    bytes32 public constant FEE_ROLE = keccak256("FEE_ROLE");
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     bytes32 public constant UNPAUSER_ROLE = keccak256("UNPAUSER_ROLE");
 
     address public nativeToken;
     address public mbToken;
+
+    /**
+     * @notice % fee that will be burnt ( less native tokens are received than mbtokens )
+     * It's used along with burnFeeScale to determine the fee amount that will be burnt
+     */
+    uint32 public burnFee;
+
+    /**
+     * @notice scale number to scale burnFee in decimals
+     * burnFee = 2 and burnFeescale = 100 leads to burn 2/100 of swap amount;
+     * burnFee = 1 and burnFeescale = 50 also leads to burn 2/100 of swap amount;
+     */
+    uint32 public burnFeeScale;
+
+    /**
+     * @notice % fee that will be tranferred to the treasury ( less native tokens are received than mbtokens )
+     * It's used along with treasuryFeeScale to determine the fee amount that will be transferred to the treasury
+     */
+    uint32 public treasuryFee;
+
+    /**
+     * @notice scale number to scale treasuryFee in decimals
+     * treasuryFee = 2 and treasuryFeeScale = 100 leads to transfer 2/100 of swap amount to the treasury;
+     * treasuryFee = 1 and treasuryFeeScale = 50 also leads to transfer 2/100 of swap amount to the treasury;
+     */
+    uint32 public treasuryFeeScale;
+
+    address public feeTreasury; // The address of treasury that fees will be transferred to
 
     mapping(address => uint256) public deposits;
 
@@ -158,6 +187,37 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
         emit Withdrawn(msg.sender, nativeTokenAmount, mbTokenAmount);
     }
 
+    /**
+     *
+     * @param _fee The numerator of the fee fraction fee/scale
+     * @param _scale The denominator of the fee fraction fee/scale
+     * @notice Fee amount could have each value with the specified fee and scale
+     * e.g. fee 5 and scale 1000 leads to the burn fee 0.5%
+     */
+    function setBurnFee(
+        uint32 _fee,
+        uint32 _scale
+    ) external onlyRole(FEE_ROLE) {
+        burnFee = _fee;
+        burnFeeScale = _scale;
+    }
+
+    /**
+     *
+     * @param _fee The numerator of the fee fraction fee/scale
+     * @param _scale The denominator of the fee fraction fee/scale
+     * @notice Fee amount could have each value with the specified fee and scale
+     * e.g. fee 5 and scale 1000 leads to treasury fee 0.5%
+     */
+    function setTreasuryFee(
+        uint32 _fee,
+        uint32 _scale
+    ) external onlyRole(FEE_ROLE) {
+        require(feeTreasury != address(0), "fee treasury is not set");
+        treasuryFee = _fee;
+        treasuryFeeScale = _scale;
+    }
+
     /// @notice Pauses the contract.
     function pause() external onlyRole(PAUSER_ROLE) {
         _pause();
@@ -166,6 +226,28 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
     /// @notice Unpauses the contract.
     function unpause() external onlyRole(UNPAUSER_ROLE) {
         _unpause();
+    }
+
+    /**
+     *
+     * @param swapAmount the amount of swap
+     * @dev calculate the fee amount that should be burnt
+     */
+    function _getBurnFeeAmount(
+        uint256 swapAmount
+    ) internal view returns (uint256) {
+        return (swapAmount * burnFee) / burnFeeScale;
+    }
+
+    /**
+     *
+     * @param swapAmount the amount of swap
+     * @dev calculate the fee amount that should be transferred
+     */
+    function _getTreasuryFeeAmount(
+        uint256 swapAmount
+    ) internal view returns (uint256) {
+        return (swapAmount * treasuryFee) / treasuryFeeScale;
     }
 
     /// @dev Internal function to handle the token swap.
@@ -199,7 +281,35 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
             balance;
         require(amount_ == receivedAmount, "Gateway: INVALID_RECEIVED_AMOUNT");
 
-        IERC20(toToken).safeTransfer(to_, amount_);
+        uint256 maxSwappableAmount = IERC20(toToken).balanceOf(address(this));
+
+        // the number of native tokens transferred are equal to the number of mbTokens bridged (and received by the gateway) minus the ( burn fee + treasury fee )
+        uint256 burnFeeAmount = _getBurnFeeAmount(amount_);
+        uint256 treasuryFeeAmount = _getTreasuryFeeAmount(amount_);
+
+        uint256 netAmount = amount_ - (burnFeeAmount + treasuryFeeAmount);
+
+        /**
+         * @dev override fee amounts and net amount based on the max swappable amount
+         */
+        burnFeeAmount = _getBurnFeeAmount(maxSwappableAmount);
+        treasuryFeeAmount = _getTreasuryFeeAmount(maxSwappableAmount);
+
+        netAmount = maxSwappableAmount - (burnFeeAmount + treasuryFeeAmount);
+
+        // Transfer native tokens (burn fee) to the address zero (burn)
+        if (burnFeeAmount != 0) {
+            IERC20(toToken).transfer(address(0), burnFeeAmount);
+        }
+
+        // Transfer native tokens (treasury fee) to the treasury address
+        if (treasuryFeeAmount != 0) {
+            IERC20(toToken).transfer(feeTreasury, treasuryFeeAmount);
+        }
+
+        IERC20(toToken).safeTransfer(to_, netAmount);
+        // Transfer the remaining amount of mbTokens that cannot be swapped to the user
+        IERC20(fromToken).safeTransfer(to_, amount_ - maxSwappableAmount);
 
         emit TokenSwapped(msg.sender, to_, fromToken, toToken, amount_);
     }
