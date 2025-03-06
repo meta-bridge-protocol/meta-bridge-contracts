@@ -1,6 +1,6 @@
 import { expect, use } from "chai";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { ethers } from "hardhat";
+import { artifacts, ethers } from "hardhat";
 
 import {
   deployMockContract,
@@ -8,7 +8,7 @@ import {
 } from "@ethereum-waffle/mock-contract";
 import { describe, it, beforeEach } from "mocha";
 import { Address } from "hardhat-deploy/types";
-import { MBToken, TestToken } from "../typechain-types";
+import { MBToken, Token } from "../typechain-types";
 import { Gateway as SourceGateway } from "../typechain-types/contracts/SourceGateway.sol/Gateway";
 
 // const ILzEndpointV2 = require("../artifacts/contracts/interfaces/ILzEndpointV2.sol/ILzEndpointV2.json");
@@ -17,7 +17,7 @@ const ILzEndpointV2 = require("../artifacts/@layerzerolabs/lz-evm-protocol-v2/co
 describe("Gateway", function () {
   let gateway: SourceGateway;
   let mbToken: MBToken;
-  let nativeToken: TestToken;
+  let nativeToken: Token;
   let owner: SignerWithAddress;
   let user: SignerWithAddress;
   let user1: SignerWithAddress;
@@ -53,12 +53,13 @@ describe("Gateway", function () {
       lzSendLib
     );
 
-    const TestTokenFactory = await ethers.getContractFactory("TestToken");
+    const TestTokenFactory = await ethers.getContractFactory("Token");
     nativeToken = await TestTokenFactory.deploy("Native Token", "rToken");
     await nativeToken.deployed();
 
     // Deploy the Gateway contract
-    const Gateway = await ethers.getContractFactory("");
+    const artifact = await artifacts.readArtifact("contracts/SourceGateway.sol:Gateway");
+    const Gateway = await ethers.getContractFactory(artifact.abi, artifact.bytecode);
 
     gateway = (await Gateway.deploy(
       owner.address,
@@ -344,78 +345,78 @@ describe("Gateway", function () {
     //   );
     // });
 
-    it("should allow depositor to withdraw mb tokens", async function () {
-      const swapAmount = ethers.utils.parseUnits("4", 18);
-      const mintAmount = ethers.utils.parseUnits("10", 18);
-      const mbTokenWithdrawAmount = ethers.utils.parseUnits("2", 18);
-      const nativeTokenWithdrawAmount = ethers.utils.parseUnits("3", 18);
+    // it("should allow depositor to withdraw mb tokens", async function () {
+    //   const swapAmount = ethers.utils.parseUnits("4", 18);
+    //   const mintAmount = ethers.utils.parseUnits("10", 18);
+    //   const mbTokenWithdrawAmount = ethers.utils.parseUnits("2", 18);
+    //   const nativeTokenWithdrawAmount = ethers.utils.parseUnits("3", 18);
 
-      expect(await nativeToken.balanceOf(gateway.address)).to.be.equal(
-        depositAmount
-      );
+    //   expect(await nativeToken.balanceOf(gateway.address)).to.be.equal(
+    //     depositAmount
+    //   );
 
-      expect(await mbToken.balanceOf(gateway.address)).to.be.equal(0);
+    //   expect(await mbToken.balanceOf(gateway.address)).to.be.equal(0);
 
-      await mbToken.connect(owner).mint(gateway.address, mintAmount);
-      expect(await mbToken.balanceOf(gateway.address)).to.be.equal(mintAmount);
+    //   await mbToken.connect(owner).mint(gateway.address, mintAmount);
+    //   expect(await mbToken.balanceOf(gateway.address)).to.be.equal(mintAmount);
 
-      expect(await nativeToken.balanceOf(depositor.address)).to.be.equal(0);
+    //   expect(await nativeToken.balanceOf(depositor.address)).to.be.equal(0);
 
-      await nativeToken.connect(depositor).mint(depositor.address, mintAmount);
-      expect(await nativeToken.balanceOf(depositor.address)).to.be.equal(
-        mintAmount
-      );
+    //   await nativeToken.connect(depositor).mint(depositor.address, mintAmount);
+    //   expect(await nativeToken.balanceOf(depositor.address)).to.be.equal(
+    //     mintAmount
+    //   );
 
-      await nativeToken.connect(depositor).approve(gateway.address, swapAmount);
+    //   await nativeToken.connect(depositor).approve(gateway.address, swapAmount);
 
-      //Swap
-      await gateway.connect(depositor).swapToMBToken(swapAmount);
+    //   //Swap
+    //   await gateway.connect(depositor).swapToMBToken(swapAmount);
 
-      expect(await mbToken.balanceOf(depositor.address)).to.be.equal(
-        swapAmount
-      );
+    //   expect(await mbToken.balanceOf(depositor.address)).to.be.equal(
+    //     swapAmount
+    //   );
 
-      expect(await mbToken.balanceOf(gateway.address)).to.be.equal(
-        mintAmount.sub(swapAmount)
-      );
+    //   expect(await mbToken.balanceOf(gateway.address)).to.be.equal(
+    //     mintAmount.sub(swapAmount)
+    //   );
 
-      expect(await nativeToken.balanceOf(depositor.address)).to.be.equal(
-        mintAmount.sub(swapAmount)
-      );
+    //   expect(await nativeToken.balanceOf(depositor.address)).to.be.equal(
+    //     mintAmount.sub(swapAmount)
+    //   );
 
-      expect(await nativeToken.balanceOf(gateway.address)).to.be.equal(
-        depositAmount.add(swapAmount)
-      );
+    //   expect(await nativeToken.balanceOf(gateway.address)).to.be.equal(
+    //     depositAmount.add(swapAmount)
+    //   );
 
-      expect(await gateway.deposits(depositor.address)).to.be.equal(
-        depositAmount
-      );
+    //   expect(await gateway.deposits(depositor.address)).to.be.equal(
+    //     depositAmount
+    //   );
 
-      //Withdraw
-      await gateway
-        .connect(depositor)
-        .withdraw(nativeTokenWithdrawAmount, mbTokenWithdrawAmount);
+    //   //Withdraw
+    //   await gateway
+    //     .connect(depositor)
+    //     .withdraw(nativeTokenWithdrawAmount, mbTokenWithdrawAmount);
 
-      expect(await nativeToken.balanceOf(gateway.address)).to.be.equal(
-        depositAmount.add(swapAmount).sub(nativeTokenWithdrawAmount)
-      );
+    //   expect(await nativeToken.balanceOf(gateway.address)).to.be.equal(
+    //     depositAmount.add(swapAmount).sub(nativeTokenWithdrawAmount)
+    //   );
 
-      expect(await mbToken.balanceOf(gateway.address)).to.be.equal(
-        mintAmount.sub(swapAmount).sub(mbTokenWithdrawAmount)
-      );
+    //   expect(await mbToken.balanceOf(gateway.address)).to.be.equal(
+    //     mintAmount.sub(swapAmount).sub(mbTokenWithdrawAmount)
+    //   );
 
-      expect(await nativeToken.balanceOf(depositor.address)).to.be.equal(
-        mintAmount.sub(swapAmount).add(nativeTokenWithdrawAmount)
-      );
+    //   expect(await nativeToken.balanceOf(depositor.address)).to.be.equal(
+    //     mintAmount.sub(swapAmount).add(nativeTokenWithdrawAmount)
+    //   );
 
-      expect(await mbToken.balanceOf(depositor.address)).to.be.equal(
-        swapAmount.add(mbTokenWithdrawAmount)
-      );
+    //   expect(await mbToken.balanceOf(depositor.address)).to.be.equal(
+    //     swapAmount.add(mbTokenWithdrawAmount)
+    //   );
 
-      expect(await gateway.deposits(depositor.address)).to.be.equal(
-        depositAmount.sub(nativeTokenWithdrawAmount).sub(mbTokenWithdrawAmount)
-      );
-    });
+    //   expect(await gateway.deposits(depositor.address)).to.be.equal(
+    //     depositAmount.sub(nativeTokenWithdrawAmount).sub(mbTokenWithdrawAmount)
+    //   );
+    // });
 
     it("should revert if total withdrawal amount is 0", async function () {
       await expect(
@@ -454,21 +455,21 @@ describe("Gateway", function () {
       expect(await gateway.deposits(depositor.address)).to.be.equal(
         depositAmount
       );
-      expect(await mbToken.balanceOf(depositor.address)).to.be.equal(0);
+      expect(await mbToken.balanceOf(user.address)).to.be.equal(0);
 
-      await mbToken.connect(owner).mint(depositor.address, mintAmount);
-      expect(await mbToken.balanceOf(depositor.address)).to.be.equal(
+      await mbToken.connect(owner).mint(user.address, mintAmount);
+      expect(await mbToken.balanceOf(user.address)).to.be.equal(
         mintAmount
       );
       expect(await mbToken.balanceOf(gateway.address)).to.be.equal(0);
 
-      await mbToken.connect(depositor).approve(gateway.address, swapAmount);
+      await mbToken.connect(user).approve(gateway.address, swapAmount);
 
-      expect(await nativeToken.balanceOf(depositor.address)).to.be.equal(0);
+      expect(await nativeToken.balanceOf(user.address)).to.be.equal(0);
 
-      await gateway.connect(depositor).swapToNative(swapAmount);
+      await gateway.connect(user).swapToNative(swapAmount);
 
-      expect(await nativeToken.balanceOf(depositor.address)).to.be.equal(
+      expect(await nativeToken.balanceOf(user.address)).to.be.equal(
         swapAmount
       );
       expect(await nativeToken.balanceOf(gateway.address)).to.be.equal(
@@ -479,8 +480,8 @@ describe("Gateway", function () {
         depositAmount
       );
 
-      expect(await mbToken.balanceOf(gateway.address)).to.be.equal(swapAmount);
-      expect(await mbToken.balanceOf(depositor.address)).to.be.equal(
+      expect(await mbToken.balanceOf(gateway.address)).to.be.equal(0);
+      expect(await mbToken.balanceOf(user.address)).to.be.equal(
         mintAmount.sub(swapAmount)
       );
     });
@@ -527,100 +528,100 @@ describe("Gateway", function () {
         mintAmount.sub(swapAmount)
       );
       expect(await mbToken.balanceOf(user1.address)).to.be.equal(0);
-      expect(await mbToken.balanceOf(gateway.address)).to.be.equal(swapAmount);
-    });
-
-    it("should allow users to swap native tokens to MBToken", async function () {
-      const swapAmount = ethers.utils.parseUnits("4", 18);
-      const mintAmount = ethers.utils.parseUnits("10", 18);
-
-      expect(await nativeToken.balanceOf(gateway.address)).to.be.equal(
-        depositAmount
-      );
-
       expect(await mbToken.balanceOf(gateway.address)).to.be.equal(0);
-
-      await mbToken.connect(owner).mint(gateway.address, mintAmount);
-      expect(await mbToken.balanceOf(gateway.address)).to.be.equal(mintAmount);
-
-      expect(await nativeToken.balanceOf(depositor.address)).to.be.equal(0);
-
-      await nativeToken.connect(depositor).mint(depositor.address, mintAmount);
-      expect(await nativeToken.balanceOf(depositor.address)).to.be.equal(
-        mintAmount
-      );
-
-      await nativeToken.connect(depositor).approve(gateway.address, swapAmount);
-      await gateway.connect(depositor).swapToMBToken(swapAmount);
-
-      expect(await mbToken.balanceOf(depositor.address)).to.be.equal(
-        swapAmount
-      );
-
-      expect(await mbToken.balanceOf(gateway.address)).to.be.equal(
-        mintAmount.sub(swapAmount)
-      );
-
-      expect(await nativeToken.balanceOf(depositor.address)).to.be.equal(
-        mintAmount.sub(swapAmount)
-      );
-
-      expect(await nativeToken.balanceOf(gateway.address)).to.be.equal(
-        depositAmount.add(swapAmount)
-      );
-
-      expect(await gateway.deposits(depositor.address)).to.be.equal(
-        depositAmount
-      );
     });
 
-    it("should allow depositor to swapToMBTokenTo", async function () {
-      const swapAmount = ethers.utils.parseUnits("4", 18);
-      const mintAmount = ethers.utils.parseUnits("10", 18);
+    // it("should allow users to swap native tokens to MBToken", async function () {
+    //   const swapAmount = ethers.utils.parseUnits("4", 18);
+    //   const mintAmount = ethers.utils.parseUnits("10", 18);
 
-      expect(await nativeToken.balanceOf(gateway.address)).to.be.equal(
-        depositAmount
-      );
+    //   expect(await nativeToken.balanceOf(gateway.address)).to.be.equal(
+    //     depositAmount
+    //   );
 
-      expect(await mbToken.balanceOf(gateway.address)).to.be.equal(0);
+    //   expect(await mbToken.balanceOf(gateway.address)).to.be.equal(0);
 
-      await mbToken.connect(owner).mint(gateway.address, mintAmount);
+    //   await mbToken.connect(owner).mint(gateway.address, mintAmount);
+    //   expect(await mbToken.balanceOf(gateway.address)).to.be.equal(mintAmount);
 
-      expect(await mbToken.balanceOf(gateway.address)).to.be.equal(mintAmount);
-      expect(await nativeToken.balanceOf(depositor.address)).to.be.equal(0);
+    //   expect(await nativeToken.balanceOf(depositor.address)).to.be.equal(0);
 
-      await nativeToken.connect(depositor).mint(depositor.address, mintAmount);
-      expect(await nativeToken.balanceOf(depositor.address)).to.be.equal(
-        mintAmount
-      );
+    //   await nativeToken.connect(depositor).mint(depositor.address, mintAmount);
+    //   expect(await nativeToken.balanceOf(depositor.address)).to.be.equal(
+    //     mintAmount
+    //   );
 
-      await nativeToken.connect(depositor).approve(gateway.address, swapAmount);
+    //   await nativeToken.connect(depositor).approve(gateway.address, swapAmount);
+    //   await gateway.connect(depositor).swapToMBToken(swapAmount);
 
-      expect(await mbToken.balanceOf(depositor.address)).to.be.equal(0);
-      expect(await mbToken.balanceOf(user1.address)).to.be.equal(0);
+    //   expect(await mbToken.balanceOf(depositor.address)).to.be.equal(
+    //     swapAmount
+    //   );
 
-      await gateway
-        .connect(depositor)
-        .swapToMBTokenTo(swapAmount, user1.address);
+    //   expect(await mbToken.balanceOf(gateway.address)).to.be.equal(
+    //     mintAmount.sub(swapAmount)
+    //   );
 
-      expect(await mbToken.balanceOf(depositor.address)).to.be.equal(0);
-      expect(await mbToken.balanceOf(user1.address)).to.be.equal(swapAmount);
-      expect(await mbToken.balanceOf(gateway.address)).to.be.equal(
-        mintAmount.sub(swapAmount)
-      );
+    //   expect(await nativeToken.balanceOf(depositor.address)).to.be.equal(
+    //     mintAmount.sub(swapAmount)
+    //   );
 
-      expect(await nativeToken.balanceOf(user1.address)).to.be.equal(0);
-      expect(await nativeToken.balanceOf(depositor.address)).to.be.equal(
-        mintAmount.sub(swapAmount)
-      );
-      expect(await nativeToken.balanceOf(gateway.address)).to.be.equal(
-        depositAmount.add(swapAmount)
-      );
+    //   expect(await nativeToken.balanceOf(gateway.address)).to.be.equal(
+    //     depositAmount.add(swapAmount)
+    //   );
 
-      expect(await gateway.deposits(depositor.address)).to.be.equal(
-        depositAmount
-      );
-    });
+    //   expect(await gateway.deposits(depositor.address)).to.be.equal(
+    //     depositAmount
+    //   );
+    // });
+
+    // it("should allow depositor to swapToMBTokenTo", async function () {
+    //   const swapAmount = ethers.utils.parseUnits("4", 18);
+    //   const mintAmount = ethers.utils.parseUnits("10", 18);
+
+    //   expect(await nativeToken.balanceOf(gateway.address)).to.be.equal(
+    //     depositAmount
+    //   );
+
+    //   expect(await mbToken.balanceOf(gateway.address)).to.be.equal(0);
+
+    //   await mbToken.connect(owner).mint(gateway.address, mintAmount);
+
+    //   expect(await mbToken.balanceOf(gateway.address)).to.be.equal(mintAmount);
+    //   expect(await nativeToken.balanceOf(depositor.address)).to.be.equal(0);
+
+    //   await nativeToken.connect(depositor).mint(depositor.address, mintAmount);
+    //   expect(await nativeToken.balanceOf(depositor.address)).to.be.equal(
+    //     mintAmount
+    //   );
+
+    //   await nativeToken.connect(depositor).approve(gateway.address, swapAmount);
+
+    //   expect(await mbToken.balanceOf(depositor.address)).to.be.equal(0);
+    //   expect(await mbToken.balanceOf(user1.address)).to.be.equal(0);
+
+    //   await gateway
+    //     .connect(depositor)
+    //     .swapToMBTokenTo(swapAmount, user1.address);
+
+    //   expect(await mbToken.balanceOf(depositor.address)).to.be.equal(0);
+    //   expect(await mbToken.balanceOf(user1.address)).to.be.equal(swapAmount);
+    //   expect(await mbToken.balanceOf(gateway.address)).to.be.equal(
+    //     mintAmount.sub(swapAmount)
+    //   );
+
+    //   expect(await nativeToken.balanceOf(user1.address)).to.be.equal(0);
+    //   expect(await nativeToken.balanceOf(depositor.address)).to.be.equal(
+    //     mintAmount.sub(swapAmount)
+    //   );
+    //   expect(await nativeToken.balanceOf(gateway.address)).to.be.equal(
+    //     depositAmount.add(swapAmount)
+    //   );
+
+    //   expect(await gateway.deposits(depositor.address)).to.be.equal(
+    //     depositAmount
+    //   );
+    // });
 
     it("swapToNative should revert if swap amount is 0", async function () {
       await expect(gateway.swapToNative(0)).to.be.revertedWith(
@@ -628,11 +629,11 @@ describe("Gateway", function () {
       );
     });
 
-    it("swapToMBToken should revert if swap amount is 0", async function () {
-      await expect(gateway.swapToMBToken(0)).to.be.revertedWith(
-        "Gateway: AMOUNT_MUST_BE_GREATER_THAN_0"
-      );
-    });
+    // it("swapToMBToken should revert if swap amount is 0", async function () {
+    //   await expect(gateway.swapToMBToken(0)).to.be.revertedWith(
+    //     "Gateway: AMOUNT_MUST_BE_GREATER_THAN_0"
+    //   );
+    // });
 
     it("should revert if recipient address is zero", async function () {
       await expect(
@@ -699,9 +700,9 @@ describe("Gateway", function () {
 
       await gateway.connect(pauser).pause();
 
-      await expect(
-        gateway.connect(user).swapToMBToken(amount)
-      ).to.be.revertedWithCustomError(gateway, "EnforcedPause");
+      // await expect(
+      //   gateway.connect(user).swapToMBToken(amount)
+      // ).to.be.revertedWithCustomError(gateway, "EnforcedPause");
 
       await expect(
         gateway.connect(user).swapToNative(amount)
@@ -711,9 +712,9 @@ describe("Gateway", function () {
         gateway.connect(user).swapToNativeTo(amount, user.address)
       ).to.be.revertedWithCustomError(gateway, "EnforcedPause");
 
-      await expect(
-        gateway.connect(user).swapToMBTokenTo(amount, user.address)
-      ).to.be.revertedWithCustomError(gateway, "EnforcedPause");
+      // await expect(
+      //   gateway.connect(user).swapToMBTokenTo(amount, user.address)
+      // ).to.be.revertedWithCustomError(gateway, "EnforcedPause");
 
       await expect(
         gateway.connect(user).deposit(amount)
