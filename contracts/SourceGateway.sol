@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
@@ -11,11 +12,6 @@ import "@openzeppelin/contracts/utils/Pausable.sol";
 /// @notice This contract allows users to swap mb tokens to native tokens and vice versa.
 contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
     using SafeERC20 for IERC20;
-
-    enum SwapType {
-        TO_NATIVE,
-        TO_MBTOKEN
-    }
 
     bytes32 public constant DEPOSITOR_ROLE = keccak256("DEPOSITOR_ROLE");
     bytes32 public constant FEE_ROLE = keccak256("FEE_ROLE");
@@ -95,18 +91,14 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
 
         nativeToken = _nativeToken;
         mbToken = _mbToken;
+        burnFeeScale = 100;
+        treasuryFeeScale = 100;
     }
 
     /// @notice Swaps a specified amount of mb tokens to native tokens.
     /// @param amount The amount of mb tokens to swap.
     function swapToNative(uint256 amount) external nonReentrant whenNotPaused {
-        _swap(amount, msg.sender, SwapType.TO_NATIVE);
-    }
-
-    /// @notice Swaps a specified amount of native tokens to mb tokens.
-    /// @param amount The amount of native tokens to swap.
-    function swapToMBToken(uint256 amount) external nonReentrant whenNotPaused {
-        _swap(amount, msg.sender, SwapType.TO_MBTOKEN);
+        _swap(amount, msg.sender);
     }
 
     /// @notice Swaps a specified amount of mb tokens to native tokens.
@@ -116,17 +108,7 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
         uint256 amount,
         address to
     ) external nonReentrant whenNotPaused {
-        _swap(amount, to, SwapType.TO_NATIVE);
-    }
-
-    /// @notice Swaps a specified amount of native tokens to mb tokens.
-    /// @param amount The amount of native tokens to swap.
-    /// @param to The recipient address of the mb tokens.
-    function swapToMBTokenTo(
-        uint256 amount,
-        address to
-    ) external nonReentrant whenNotPaused {
-        _swap(amount, to, SwapType.TO_MBTOKEN);
+        _swap(amount, to);
     }
 
     /// @notice Allows users to deposit native tokens.
@@ -253,35 +235,22 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
     /// @dev Internal function to handle the token swap.
     /// @param amount_ The amount of tokens to swap.
     /// @param to_ The recipient address of the swapped tokens.
-    /// @param type_ The swap type (TO_NATIVE or TO_MBTOKEN).
-    function _swap(uint256 amount_, address to_, SwapType type_) internal {
+    function _swap(uint256 amount_, address to_) internal {
         require(amount_ > 0, "Gateway: AMOUNT_MUST_BE_GREATER_THAN_0");
         require(
             to_ != address(0),
             "Gateway: RECIPIENT_ADDRESS_MUST_BE_NON-ZERO"
         );
 
-        address fromToken;
-        address toToken;
-        if (type_ == SwapType.TO_MBTOKEN) {
-            fromToken = nativeToken;
-            toToken = mbToken;
-        } else if (type_ == SwapType.TO_NATIVE) {
-            fromToken = mbToken;
-            toToken = nativeToken;
-        } else {
-            revert("Invalid SwapType");
-        }
+        uint256 balance = IERC20(mbToken).balanceOf(address(this));
 
-        uint256 balance = IERC20(fromToken).balanceOf(address(this));
+        IERC20(mbToken).safeTransferFrom(msg.sender, address(this), amount_);
 
-        IERC20(fromToken).safeTransferFrom(msg.sender, address(this), amount_);
-
-        uint256 receivedAmount = IERC20(fromToken).balanceOf(address(this)) -
+        uint256 receivedAmount = IERC20(mbToken).balanceOf(address(this)) -
             balance;
         require(amount_ == receivedAmount, "Gateway: INVALID_RECEIVED_AMOUNT");
 
-        uint256 maxSwappableAmount = IERC20(toToken).balanceOf(address(this));
+        uint256 maxSwappableAmount = IERC20(mbToken).balanceOf(address(this));
 
         // the number of native tokens transferred are equal to the number of mbTokens bridged (and received by the gateway) minus the ( burn fee + treasury fee )
         uint256 burnFeeAmount = _getBurnFeeAmount(amount_);
@@ -289,28 +258,43 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
 
         uint256 netAmount = amount_ - (burnFeeAmount + treasuryFeeAmount);
 
-        /**
-         * @dev override fee amounts and net amount based on the max swappable amount
-         */
-        burnFeeAmount = _getBurnFeeAmount(maxSwappableAmount);
-        treasuryFeeAmount = _getTreasuryFeeAmount(maxSwappableAmount);
+        // all mbTokens swapped are burned,
+        // the net (after fee) amount of native tokens are transferred to the user wallet
+        // if the net amount is greater than swappable amount,
+        // it will swap as much as swappable amount and calculate the new net amount,
+        // then it will transfer the remaining mbTokens (amount - swappable amount) to the user
+        if (netAmount <= maxSwappableAmount) {
+            ERC20Burnable(mbToken).burn(amount_);
+        } else {
+            /**
+             * @dev override fee amounts and net amount based on the max swappable amount
+             */
+            burnFeeAmount = _getBurnFeeAmount(maxSwappableAmount);
+            treasuryFeeAmount = _getTreasuryFeeAmount(maxSwappableAmount);
 
-        netAmount = maxSwappableAmount - (burnFeeAmount + treasuryFeeAmount);
+            netAmount =
+                maxSwappableAmount -
+                (burnFeeAmount + treasuryFeeAmount);
 
-        // Transfer native tokens (burn fee) to the address zero (burn)
+            ERC20Burnable(mbToken).burn(maxSwappableAmount);
+
+            // Transfer the remaining amount of mbTokens that cannot be swapped to the user
+            IERC20(mbToken).safeTransfer(to_, amount_ - maxSwappableAmount);
+        }
+
         if (burnFeeAmount != 0) {
-            IERC20(toToken).transfer(address(0), burnFeeAmount);
+            // Transfer native tokens (burn fee) to the address zero (burn)
+            IERC20(nativeToken).transfer(address(0), maxSwappableAmount);
         }
 
         // Transfer native tokens (treasury fee) to the treasury address
         if (treasuryFeeAmount != 0) {
-            IERC20(toToken).transfer(feeTreasury, treasuryFeeAmount);
+            IERC20(nativeToken).transfer(feeTreasury, treasuryFeeAmount);
         }
 
-        IERC20(toToken).safeTransfer(to_, netAmount);
-        // Transfer the remaining amount of mbTokens that cannot be swapped to the user
-        IERC20(fromToken).safeTransfer(to_, amount_ - maxSwappableAmount);
+        // Transfer the native tokens to the user
+        IERC20(nativeToken).safeTransfer(to_, netAmount);
 
-        emit TokenSwapped(msg.sender, to_, fromToken, toToken, amount_);
+        emit TokenSwapped(msg.sender, to_, nativeToken, mbToken, amount_);
     }
 }
