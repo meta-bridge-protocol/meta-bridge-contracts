@@ -10,9 +10,10 @@ import "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "./Symemeio.sol";
 
-/// @title Gateway
+/// @title MinterGateway
 /// @notice This contract allows users to swap mb tokens to native tokens and vice versa.
-contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
+/// It will mint native tokens directly and has some additional functionalities like period limit checking.
+contract MinterGateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
     using SafeERC20 for IERC20;
 
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
