@@ -10,6 +10,7 @@ import "@openzeppelin/contracts/utils/Pausable.sol";
 
 /// @title Gateway
 /// @notice This contract allows users to swap mb tokens to native tokens and vice versa.
+/// It will transfer native tokens to user.
 contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
     using SafeERC20 for IERC20;
 
