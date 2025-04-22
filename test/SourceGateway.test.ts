@@ -9,13 +9,13 @@ import {
 import { describe, it, beforeEach } from "mocha";
 import { Address } from "hardhat-deploy/types";
 import { MBToken, Token } from "../typechain-types";
-import { Gateway as SourceGateway } from "../typechain-types/contracts/SourceGateway.sol/Gateway";
+import { Gateway } from "../typechain-types/contracts/Gateway.sol/Gateway";
 
 // const ILzEndpointV2 = require("../artifacts/contracts/interfaces/ILzEndpointV2.sol/ILzEndpointV2.json");
 const ILzEndpointV2 = require("../artifacts/@layerzerolabs/lz-evm-protocol-v2/contracts/interfaces/ILayerZeroEndpointV2.sol/ILayerZeroEndpointV2.json");
 
 describe("Gateway", function () {
-  let gateway: SourceGateway;
+  let gateway: Gateway;
   let mbToken: MBToken;
   let nativeToken: Token;
   let owner: SignerWithAddress;
@@ -58,14 +58,16 @@ describe("Gateway", function () {
     await nativeToken.deployed();
 
     // Deploy the Gateway contract
-    const artifact = await artifacts.readArtifact("contracts/SourceGateway.sol:Gateway");
-    const Gateway = await ethers.getContractFactory(artifact.abi, artifact.bytecode);
+    // const artifact = await artifacts.readArtifact("contracts/Gateway.sol:Gateway");
+    // const Gateway = await ethers.getContractFactory(artifact.abi, artifact.bytecode);
+
+    const Gateway = await ethers.getContractFactory("Gateway");
 
     gateway = (await Gateway.deploy(
       owner.address,
       nativeToken.address,
       mbToken.address
-    )) as SourceGateway;
+    ));
 
     await gateway.deployed();
 
