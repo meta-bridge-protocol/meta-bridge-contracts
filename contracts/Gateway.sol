@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
@@ -9,6 +10,7 @@ import "@openzeppelin/contracts/utils/Pausable.sol";
 
 /// @title Gateway
 /// @notice This contract allows users to swap mb tokens to native tokens and vice versa.
+/// It will transfer native tokens to user.
 contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
     using SafeERC20 for IERC20;
 
@@ -19,6 +21,7 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
 
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     bytes32 public constant DEPOSITOR_ROLE = keccak256("DEPOSITOR_ROLE");
+    bytes32 public constant FEE_ROLE = keccak256("FEE_ROLE");
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     bytes32 public constant UNPAUSER_ROLE = keccak256("UNPAUSER_ROLE");
     bytes32 public constant ASSET_MANAGER_ROLE =
@@ -27,6 +30,34 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
     address public nativeToken;
     address public mbToken;
     address public treasuryAddress;
+
+    /**
+     * @notice % fee that will be burnt ( less native tokens are received than mbtokens )
+     * It's used along with burnFeeScale to determine the fee amount that will be burnt
+     */
+    uint32 public burnFee;
+
+    /**
+     * @notice scale number to scale burnFee in decimals
+     * burnFee = 2 and burnFeescale = 100 leads to burn 2/100 of swap amount;
+     * burnFee = 1 and burnFeescale = 50 also leads to burn 2/100 of swap amount;
+     */
+    uint32 public burnFeeScale;
+
+    /**
+     * @notice % fee that will be tranferred to the treasury ( less native tokens are received than mbtokens )
+     * It's used along with treasuryFeeScale to determine the fee amount that will be transferred to the treasury
+     */
+    uint32 public treasuryFee;
+
+    /**
+     * @notice scale number to scale treasuryFee in decimals
+     * treasuryFee = 2 and treasuryFeeScale = 100 leads to transfer 2/100 of swap amount to the treasury;
+     * treasuryFee = 1 and treasuryFeeScale = 50 also leads to transfer 2/100 of swap amount to the treasury;
+     */
+    uint32 public treasuryFeeScale;
+
+    address public feeTreasury; // The address of treasury that fees will be transferred to
 
     mapping(address => uint256) public deposits;
     uint256 totalDeposit;
@@ -97,6 +128,8 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
         nativeToken = _nativeToken;
         mbToken = _mbToken;
         treasuryAddress = _treasuryAddress;
+        burnFeeScale = 100;
+        treasuryFeeScale = 100;
     }
 
     function setTreasuryAddress(
@@ -210,6 +243,28 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
         _unpause();
     }
 
+    /**
+     *
+     * @param swapAmount the amount of swap
+     * @dev calculate the fee amount that should be burnt
+     */
+    function _getBurnFeeAmount(
+        uint256 swapAmount
+    ) internal view returns (uint256) {
+        return (swapAmount * burnFee) / burnFeeScale;
+    }
+
+    /**
+     *
+     * @param swapAmount the amount of swap
+     * @dev calculate the fee amount that should be transferred
+     */
+    function _getTreasuryFeeAmount(
+        uint256 swapAmount
+    ) internal view returns (uint256) {
+        return (swapAmount * treasuryFee) / treasuryFeeScale;
+    }
+
     /// @dev Internal function to handle the token swap.
     /// @param amount_ The amount of tokens to swap.
     /// @param to_ The recipient address of the swapped tokens.
@@ -240,6 +295,49 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
         uint256 receivedAmount = IERC20(fromToken).balanceOf(address(this)) -
             balance;
         require(amount_ == receivedAmount, "Gateway: INVALID_RECEIVED_AMOUNT");
+
+        uint256 maxSwappableAmount = IERC20(mbToken).balanceOf(address(this));
+
+        // the number of native tokens transferred are equal to the number of mbTokens bridged (and received by
+        // the gateway) minus the ( burn fee + treasury fee )
+        uint256 burnFeeAmount = _getBurnFeeAmount(amount_);
+        uint256 treasuryFeeAmount = _getTreasuryFeeAmount(amount_);
+
+        uint256 netAmount = amount_ - (burnFeeAmount + treasuryFeeAmount);
+
+        // all mbTokens swapped are burned,
+        // the net (after fee) amount of native tokens are transferred to the user wallet
+        // if the net amount is greater than swappable amount,
+        // it will swap as much as swappable amount and calculate the new net amount,
+        // then it will transfer the remaining mbTokens (amount - swappable amount) to the user
+        if (netAmount <= maxSwappableAmount) {
+            ERC20Burnable(mbToken).burn(amount_);
+        } else {
+            /**
+             * @dev override fee amounts and net amount based on the max swappable amount
+             */
+            burnFeeAmount = _getBurnFeeAmount(maxSwappableAmount);
+            treasuryFeeAmount = _getTreasuryFeeAmount(maxSwappableAmount);
+
+            netAmount =
+                maxSwappableAmount -
+                (burnFeeAmount + treasuryFeeAmount);
+
+            ERC20Burnable(mbToken).burn(maxSwappableAmount);
+
+            // Transfer the remaining amount of mbTokens that cannot be swapped to the user
+            IERC20(mbToken).safeTransfer(to_, amount_ - maxSwappableAmount);
+        }
+
+        if (burnFeeAmount != 0) {
+            // Transfer native tokens (burn fee) to the address zero (burn)
+            IERC20(nativeToken).transfer(address(0), maxSwappableAmount);
+        }
+
+        // Transfer native tokens (treasury fee) to the treasury address
+        if (treasuryFeeAmount != 0) {
+            IERC20(nativeToken).transfer(feeTreasury, treasuryFeeAmount);
+        }
 
         IERC20(toToken).safeTransfer(to_, amount_);
 
