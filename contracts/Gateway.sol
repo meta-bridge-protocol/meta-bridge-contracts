@@ -251,7 +251,9 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
             balance;
         require(amount_ == receivedAmount, "Gateway: INVALID_RECEIVED_AMOUNT");
 
-        uint256 maxSwappableAmount = IERC20(mbToken).balanceOf(address(this));
+        uint256 maxSwappableAmount = IERC20(nativeToken).balanceOf(
+            address(this)
+        );
 
         // the number of native tokens transferred are equal to the number of mbTokens bridged (and received by the gateway) minus the ( burn fee + treasury fee )
         uint256 burnFeeAmount = _getBurnFeeAmount(amount_);
@@ -285,7 +287,7 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
 
         if (burnFeeAmount != 0) {
             // Transfer native tokens (burn fee) to the address zero (burn)
-            IERC20(nativeToken).transfer(address(0), maxSwappableAmount);
+            IERC20(nativeToken).transfer(address(0), burnFeeAmount);
         }
 
         // Transfer native tokens (treasury fee) to the treasury address
@@ -296,6 +298,6 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
         // Transfer the native tokens to the user
         IERC20(nativeToken).safeTransfer(to_, netAmount);
 
-        emit TokenSwapped(msg.sender, to_, nativeToken, mbToken, amount_);
+        emit TokenSwapped(msg.sender, to_, mbToken, nativeToken, amount_);
     }
 }
