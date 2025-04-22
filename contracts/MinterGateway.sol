@@ -17,7 +17,7 @@ contract MinterGateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
     using SafeERC20 for IERC20;
 
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
-    bytes32 public constant FEE_ROLE = keccak256("FEE_ROLE");
+    bytes32 public constant CONFIG_ROLE = keccak256("CONFIG_ROLE");
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     bytes32 public constant UNPAUSER_ROLE = keccak256("UNPAUSER_ROLE");
 
@@ -79,7 +79,7 @@ contract MinterGateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
 
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
         _grantRole(ADMIN_ROLE, _admin);
-        _grantRole(FEE_ROLE, _admin);
+        _grantRole(CONFIG_ROLE, _admin);
 
         periodStart = block.timestamp;
         nativeToken = _nativeToken;
@@ -115,57 +115,30 @@ contract MinterGateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
     }
 
     /**
-     *
      * @param _periodLength Length of the period in seconds
      * @param _maxAmount Max swappable amount in the period
+     * @param _burnFee The numerator of the fee fraction fee/scale
+     * @param _burnFeeScale The denominator of the fee fraction fee/scale
+     * @param _treasuryFee The numerator of the fee fraction fee/scale
+     * @param _treasuryFeeScale The denominator of the fee fraction fee/scale
+     * @param _feeTreasury the address of treasury that fees will be transferred to
      */
-    function setLimits(
+    function config(
         uint256 _periodLength,
-        uint256 _maxAmount
-    ) external onlyRole(ADMIN_ROLE) {
+        uint256 _maxAmount,
+        uint32 _burnFee,
+        uint32 _burnFeeScale,
+        uint32 _treasuryFee,
+        uint32 _treasuryFeeScale,
+        address _feeTreasury
+    ) external onlyRole(CONFIG_ROLE) {
         periodLength = _periodLength;
         periodMaxAmount = _maxAmount;
-    }
-
-    /**
-     *
-     * @param _fee The numerator of the fee fraction fee/scale
-     * @param _scale The denominator of the fee fraction fee/scale
-     * @notice Fee amount could have each value with the specified fee and scale
-     * e.g. fee 5 and scale 1000 leads to the burn fee 0.5%
-     */
-    function setBurnFee(
-        uint32 _fee,
-        uint32 _scale
-    ) external onlyRole(FEE_ROLE) {
-        burnFee = _fee;
-        burnFeeScale = _scale;
-    }
-
-    /**
-     *
-     * @param _fee The numerator of the fee fraction fee/scale
-     * @param _scale The denominator of the fee fraction fee/scale
-     * @notice Fee amount could have each value with the specified fee and scale
-     * e.g. fee 5 and scale 1000 leads to treasury fee 0.5%
-     */
-    function setTreasuryFee(
-        uint32 _fee,
-        uint32 _scale
-    ) external onlyRole(FEE_ROLE) {
-        require(feeTreasury != address(0), "fee treasury is not set");
-        treasuryFee = _fee;
-        treasuryFeeScale = _scale;
-    }
-
-    /**
-     *
-     * @param _treasury the address of treasury that fees will be transferred to
-     */
-    function setFeeTreasuryAddress(
-        address _treasury
-    ) external onlyRole(FEE_ROLE) {
-        feeTreasury = _treasury;
+        burnFee = _burnFee;
+        burnFeeScale = _burnFeeScale;
+        treasuryFee = _treasuryFee;
+        treasuryFeeScale = _treasuryFeeScale;
+        feeTreasury = _feeTreasury;
     }
 
     /**
