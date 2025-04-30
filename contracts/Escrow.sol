@@ -133,6 +133,25 @@ contract Escrow is Initializable, AccessControlEnumerableUpgradeable {
         emit WithdrawERC20(token, treasuryAddress, amount);
     }
 
+    /**
+     * @notice Withdraw tokens from the contract and transfer them to the recipient.
+     * @param _amount the amount of token to withdraw.
+     * @param _to address of the recipient of tokens
+     * @param _tokenAddr address of token to withdraw. Use address(0) for ETH
+     */
+    function adminWithdraw(
+        uint256 _amount,
+        address _to,
+        address _tokenAddr
+    ) external onlyRole(ADMIN_ROLE) {
+        require(_to != address(0));
+        if (_tokenAddr == address(0)) {
+            payable(_to).transfer(_amount);
+        } else {
+            IERC20(_tokenAddr).transfer(_to, _amount);
+        }
+    }
+
     function checkLimits(uint256 amount) internal {
         if (!hasRole(ADMIN_ROLE, msg.sender)) {
             if (block.timestamp - periodStart <= periodLength) {
