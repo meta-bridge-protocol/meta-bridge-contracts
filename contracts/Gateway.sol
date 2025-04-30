@@ -82,11 +82,6 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
         uint256 mbTokenAmount
     );
 
-    /// @notice Event to log the successful treasury address changed.
-    /// @param oldTreasury The previous treasury address.
-    /// @param newTreasury The new treasury address.
-    event TreasuryChanged(address oldTreasury, address newTreasury);
-
     /// @notice Constructs a new Gateway contract.
     constructor(address _admin, address _nativeToken, address _mbToken) {
         require(
