@@ -14,8 +14,9 @@ import "@openzeppelin/contracts/utils/Pausable.sol";
 contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
     using SafeERC20 for IERC20;
 
+    bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     bytes32 public constant DEPOSITOR_ROLE = keccak256("DEPOSITOR_ROLE");
-    bytes32 public constant FEE_ROLE = keccak256("FEE_ROLE");
+    bytes32 public constant CONFIG_ROLE = keccak256("CONFIG_ROLE");
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     bytes32 public constant UNPAUSER_ROLE = keccak256("UNPAUSER_ROLE");
 
@@ -71,7 +72,7 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
     /// @param nativeTokenAmount The amount of native tokens deposited.
     event Deposited(address indexed user, uint256 nativeTokenAmount);
 
-    /// @notice Event to log the successful withdrawal of tokens.
+    /// @notice Event to log the successful withdrawal of native or mb tokens.
     /// @param user The address of the user who withdrew.
     /// @param nativeTokenAmount The amount of native tokens withdrawn.
     /// @param mbTokenAmount The amount of mb tokens withdrawn.
@@ -170,37 +171,6 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
         emit Withdrawn(msg.sender, nativeTokenAmount, mbTokenAmount);
     }
 
-    /**
-     *
-     * @param _fee The numerator of the fee fraction fee/scale
-     * @param _scale The denominator of the fee fraction fee/scale
-     * @notice Fee amount could have each value with the specified fee and scale
-     * e.g. fee 5 and scale 1000 leads to the burn fee 0.5%
-     */
-    function setBurnFee(
-        uint32 _fee,
-        uint32 _scale
-    ) external onlyRole(FEE_ROLE) {
-        burnFee = _fee;
-        burnFeeScale = _scale;
-    }
-
-    /**
-     *
-     * @param _fee The numerator of the fee fraction fee/scale
-     * @param _scale The denominator of the fee fraction fee/scale
-     * @notice Fee amount could have each value with the specified fee and scale
-     * e.g. fee 5 and scale 1000 leads to treasury fee 0.5%
-     */
-    function setTreasuryFee(
-        uint32 _fee,
-        uint32 _scale
-    ) external onlyRole(FEE_ROLE) {
-        require(feeTreasury != address(0), "fee treasury is not set");
-        treasuryFee = _fee;
-        treasuryFeeScale = _scale;
-    }
-
     /// @notice Pauses the contract.
     function pause() external onlyRole(PAUSER_ROLE) {
         _pause();
@@ -209,6 +179,51 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
     /// @notice Unpauses the contract.
     function unpause() external onlyRole(UNPAUSER_ROLE) {
         _unpause();
+    }
+
+    /**
+     * @param _burnFee The numerator of the fee fraction fee/scale
+     * @param _burnFeeScale The denominator of the fee fraction fee/scale
+     * @param _treasuryFee The numerator of the fee fraction fee/scale
+     * @param _treasuryFeeScale The denominator of the fee fraction fee/scale
+     * @param _feeTreasury the address of treasury that fees will be transferred to
+     * @notice Fee amount could have each value with the specified fee and scale
+     * e.g. fee 5 and scale 1000 leads to the burn fee 0.5%
+     */
+    function config(
+        uint32 _burnFee,
+        uint32 _burnFeeScale,
+        uint32 _treasuryFee,
+        uint32 _treasuryFeeScale,
+        address _feeTreasury
+    ) external onlyRole(CONFIG_ROLE) {
+        require(_burnFeeScale > 0, "Invalid burnFeeScale");
+        require(_treasuryFeeScale > 0, "Invalid treasuryFeeScale");
+
+        burnFee = _burnFee;
+        burnFeeScale = _burnFeeScale;
+        treasuryFee = _treasuryFee;
+        treasuryFeeScale = _treasuryFeeScale;
+        feeTreasury = _feeTreasury;
+    }
+
+    /**
+     * @notice Withdraw tokens from the contract and transfer them to the recipient.
+     * @param _amount the amount of token to withdraw.
+     * @param _to address of the recipient of tokens
+     * @param _tokenAddr address of token to withdraw. Use address(0) for ETH
+     */
+    function adminWithdraw(
+        uint256 _amount,
+        address _to,
+        address _tokenAddr
+    ) external onlyRole(ADMIN_ROLE) {
+        require(_to != address(0));
+        if (_tokenAddr == address(0)) {
+            payable(_to).transfer(_amount);
+        } else {
+            IERC20(_tokenAddr).transfer(_to, _amount);
+        }
     }
 
     /**
@@ -255,7 +270,8 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
             address(this)
         );
 
-        // the number of native tokens transferred are equal to the number of mbTokens bridged (and received by the gateway) minus the ( burn fee + treasury fee )
+        // the number of native tokens transferred are equal to the number of mbTokens bridged (and received by
+        // the gateway) minus the ( burn fee + treasury fee )
         uint256 burnFeeAmount = _getBurnFeeAmount(amount_);
         uint256 treasuryFeeAmount = _getTreasuryFeeAmount(amount_);
 
