@@ -22,14 +22,20 @@ interface IGateway {
 contract Escrow is Initializable, AccessControlEnumerableUpgradeable {
     address public gatewayAddress;
     address public nativeTokenAddress;
-    address public treasureAddress;
+    address public treasuryAddress; // address of treasury to send withdrawn tokens
+    /**
+     * @notice Demonstrates the threshold amount of Gateway
+     * While depositing to the Gateway and withdrawing from it, the threshold amount will specify
+     * how many tokens should be deposited or withdrawn
+     */
     uint256 public thresholdAmount;
-    uint256 public periodLimit;
-    uint256 public periodStart;
-    uint256 public periodMaxAmount;
-    uint256 public periodDepositedAmount;
+    uint256 public periodLength; // defines the period length
+    uint256 public periodStart; // indicates the beginning of the period
+    uint256 public periodMaxAmount; // how many tokens can be transferred to the Gateway per period
+    uint256 public periodDepositedAmount; // counter: counts the numnber of native tokens transferred in this period
 
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+    bytes32 public constant CONFIG_ROLE = keccak256("CONFIG_ROLE");
     bytes32 public constant DEPOSITOR_ROLE = keccak256("DEPOSITOR_ROLE");
     bytes32 public constant WITHDRAWER_ROLE = keccak256("WITHDRAWER_ROLE");
     bytes32 public constant ASSET_MANAGER_ROLE =
@@ -37,19 +43,18 @@ contract Escrow is Initializable, AccessControlEnumerableUpgradeable {
 
     event DepositToGateway(uint256 amount, uint256 thresholdAmount);
     event WithdrawFromGateway(uint256 amount, uint256 thresholdAmount);
-    event SetThresholdAmount(uint256 thresholdAmount);
     event TreasureChanged(address oldTreasure, address newTreasure);
     event WithdrawERC20(address token, address to, uint256 amount);
 
     function initialize(
         address _gatewayAddress,
-        address _treasureAddress,
+        address _treasuryAddress,
         uint256 _thresholdAmount
     ) public initializer {
         __AccessControl_init();
 
         gatewayAddress = _gatewayAddress;
-        treasureAddress = _treasureAddress;
+        treasuryAddress = _treasuryAddress;
         thresholdAmount = _thresholdAmount;
 
         nativeTokenAddress = IGateway(gatewayAddress).nativeToken();
@@ -100,47 +105,37 @@ contract Escrow is Initializable, AccessControlEnumerableUpgradeable {
         emit WithdrawFromGateway(requiredAmount, thresholdAmount);
     }
 
-    function setThresholdAmount(
-        uint256 _thresholdAmount
-    ) external onlyRole(ADMIN_ROLE) {
+    /**
+     *
+     * @param _periodLength Length of the period in seconds
+     * @param _periodMaxAmount Max amount that will be transferred to the Gateway in the period
+     * It's recommended to set periodMaxAmount greater than threshold amount
+     * @param _thresholdAmount Gateway threshold amount
+     */
+    function config(
+        uint256 _periodLength,
+        uint256 _periodMaxAmount,
+        uint256 _thresholdAmount,
+        address _treasuryAddress
+    ) external onlyRole(CONFIG_ROLE) {
+        periodLength = _periodLength;
+        periodMaxAmount = _periodMaxAmount;
         thresholdAmount = _thresholdAmount;
-
-        emit SetThresholdAmount(_thresholdAmount);
-    }
-
-    function setTreasureAddress(
-        address _treasureAddress
-    ) external onlyRole(ADMIN_ROLE) {
-        address oldTreasure = treasureAddress;
-        treasureAddress = _treasureAddress;
-
-        emit TreasureChanged(oldTreasure, treasureAddress);
-    }
-
-    function setPeriodLimit(
-        uint256 _periodLimit
-    ) external onlyRole(ADMIN_ROLE) {
-        periodLimit = _periodLimit;
-    }
-
-    function setPeriodMaxAmount(
-        uint256 _maxAmount
-    ) external onlyRole(ADMIN_ROLE) {
-        periodMaxAmount = _maxAmount;
+        treasuryAddress = _treasuryAddress;
     }
 
     function withdrawERC20(
         address token,
         uint256 amount
     ) external onlyRole(ASSET_MANAGER_ROLE) {
-        IERC20(token).transfer(treasureAddress, amount);
+        IERC20(token).transfer(treasuryAddress, amount);
 
-        emit WithdrawERC20(token, treasureAddress, amount);
+        emit WithdrawERC20(token, treasuryAddress, amount);
     }
 
     function checkLimits(uint256 amount) internal {
         if (!hasRole(ADMIN_ROLE, msg.sender)) {
-            if (block.timestamp - periodStart <= periodLimit) {
+            if (block.timestamp - periodStart <= periodLength) {
                 periodDepositedAmount += amount;
                 require(
                     periodDepositedAmount <= periodMaxAmount,
