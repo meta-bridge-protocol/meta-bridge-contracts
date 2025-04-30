@@ -16,7 +16,7 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
 
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     bytes32 public constant DEPOSITOR_ROLE = keccak256("DEPOSITOR_ROLE");
-    bytes32 public constant FEE_ROLE = keccak256("FEE_ROLE");
+    bytes32 public constant CONFIG_ROLE = keccak256("CONFIG_ROLE");
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     bytes32 public constant UNPAUSER_ROLE = keccak256("UNPAUSER_ROLE");
     bytes32 public constant ASSET_MANAGER_ROLE =
@@ -220,6 +220,32 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
     /// @notice Unpauses the contract.
     function unpause() external onlyRole(UNPAUSER_ROLE) {
         _unpause();
+    }
+
+    /**
+     * @param _burnFee The numerator of the fee fraction fee/scale
+     * @param _burnFeeScale The denominator of the fee fraction fee/scale
+     * @param _treasuryFee The numerator of the fee fraction fee/scale
+     * @param _treasuryFeeScale The denominator of the fee fraction fee/scale
+     * @param _feeTreasury the address of treasury that fees will be transferred to
+     * @notice Fee amount could have each value with the specified fee and scale
+     * e.g. fee 5 and scale 1000 leads to the burn fee 0.5%
+     */
+    function config(
+        uint32 _burnFee,
+        uint32 _burnFeeScale,
+        uint32 _treasuryFee,
+        uint32 _treasuryFeeScale,
+        address _feeTreasury
+    ) external onlyRole(CONFIG_ROLE) {
+        require(_burnFeeScale > 0, "Invalid burnFeeScale");
+        require(_treasuryFeeScale > 0, "Invalid treasuryFeeScale");
+
+        burnFee = _burnFee;
+        burnFeeScale = _burnFeeScale;
+        treasuryFee = _treasuryFee;
+        treasuryFeeScale = _treasuryFeeScale;
+        feeTreasury = _feeTreasury;
     }
 
     /**
