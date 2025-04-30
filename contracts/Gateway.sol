@@ -19,12 +19,9 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
     bytes32 public constant CONFIG_ROLE = keccak256("CONFIG_ROLE");
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     bytes32 public constant UNPAUSER_ROLE = keccak256("UNPAUSER_ROLE");
-    bytes32 public constant ASSET_MANAGER_ROLE =
-        keccak256("ASSET_MANAGER_ROLE");
 
     address public nativeToken;
     address public mbToken;
-    address public treasuryAddress;
 
     /**
      * @notice % fee that will be burnt ( less native tokens are received than mbtokens )
@@ -55,7 +52,6 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
     address public feeTreasury; // The address of treasury that fees will be transferred to
 
     mapping(address => uint256) public deposits;
-    uint256 totalDeposit;
 
     /// @notice Event to log the successful token swap.
     /// @param from The address that initiated the swap.
@@ -91,49 +87,19 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
     /// @param newTreasury The new treasury address.
     event TreasuryChanged(address oldTreasury, address newTreasury);
 
-    /// @notice Event to log the successful withdrawal of ETH by asset manager.
-    /// @param to The address that withdrawn ETH transferred to.
-    /// @param amount The amount of ETH withdrawn.
-    event WithdrawETH(address to, uint256 amount);
-
-    /// @notice Event to log the successful withdrawal of any ERC20 tokens by asset manager.
-    /// @param token The token that withdrawn.
-    /// @param to The address that withdrawn tokens transferred to.
-    /// @param amount The amount of tokens withdrawn.
-    event WithdrawERC20(address token, address to, uint256 amount);
-
     /// @notice Constructs a new Gateway contract.
-    constructor(
-        address _admin,
-        address _nativeToken,
-        address _mbToken,
-        address _treasuryAddress
-    ) {
+    constructor(address _admin, address _nativeToken, address _mbToken) {
         require(
             _admin != address(0),
             "Gateway: ADMIN_ADDRESS_MUST_BE_NON-ZERO"
-        );
-        require(
-            _treasuryAddress != address(0),
-            "Gateway: TREASURY_ADDRESS_MUST_BE_NON-ZERO"
         );
 
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
 
         nativeToken = _nativeToken;
         mbToken = _mbToken;
-        treasuryAddress = _treasuryAddress;
         burnFeeScale = 100;
         treasuryFeeScale = 100;
-    }
-
-    function setTreasuryAddress(
-        address _treasuryAddress
-    ) external onlyRole(ADMIN_ROLE) {
-        address oldTreasury = treasuryAddress;
-        treasuryAddress = _treasuryAddress;
-
-        emit TreasuryChanged(oldTreasury, treasuryAddress);
     }
 
     /// @notice Swaps a specified amount of mb tokens to native tokens.
@@ -178,7 +144,6 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
         );
 
         deposits[msg.sender] += nativeTokenAmount;
-        totalDeposit += nativeTokenAmount;
 
         emit Deposited(msg.sender, nativeTokenAmount);
     }
@@ -201,7 +166,6 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
         );
 
         deposits[msg.sender] -= totalWithdrawal;
-        totalDeposit -= totalWithdrawal;
         if (nativeTokenAmount > 0) {
             IERC20(nativeToken).safeTransfer(msg.sender, nativeTokenAmount);
         }
@@ -333,36 +297,28 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
             IERC20(nativeToken).transfer(feeTreasury, treasuryFeeAmount);
         }
 
+        // Transfer the native tokens to the user
         IERC20(nativeToken).safeTransfer(to_, netAmount);
 
         emit TokenSwapped(msg.sender, to_, mbToken, nativeToken, amount_);
     }
 
-    /// @notice Withdraw the chain's native tokens from the contract and transfer them to the treasury.
-    /// @param amount the amount of ETH to withdraw.
-    function withdrawETH(uint256 amount) external onlyRole(ASSET_MANAGER_ROLE) {
-        payable(treasuryAddress).transfer(amount);
-        emit WithdrawETH(treasuryAddress, amount);
-    }
-
-    /// @notice Withdraw ERC20 tokens from the contract and transfer them to the treasury.
-    /// @param token the token address to withdraw.
-    /// @param amount the amount of tokens to withdraw.
-    function withdrawERC20(
-        address token,
-        uint256 amount
-    ) external onlyRole(ASSET_MANAGER_ROLE) {
-        if (token == nativeToken || token == mbToken) {
-            uint256 gatewayBalance = IERC20(nativeToken).balanceOf(
-                address(this)
-            ) + IERC20(mbToken).balanceOf(address(this));
-            uint256 surplusBalance = gatewayBalance - totalDeposit;
-            require(
-                amount <= surplusBalance,
-                "Gateway: REQUESTED_AMOUNT_EXCEEDS_SURPLUS_BALANCE"
-            );
+    /**
+     * @notice Withdraw tokens from the contract and transfer them to the recipient.
+     * @param _amount the amount of token to withdraw.
+     * @param _to address of the recipient of tokens
+     * @param _tokenAddr address of token to withdraw. Use address(0) for ETH
+     */
+    function adminWithdraw(
+        uint256 _amount,
+        address _to,
+        address _tokenAddr
+    ) external onlyRole(ADMIN_ROLE) {
+        require(_to != address(0));
+        if (_tokenAddr == address(0)) {
+            payable(_to).transfer(_amount);
+        } else {
+            IERC20(_tokenAddr).transfer(_to, _amount);
         }
-        IERC20(token).safeTransfer(treasuryAddress, amount);
-        emit WithdrawERC20(token, treasuryAddress, amount);
     }
 }
