@@ -208,6 +208,25 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
     }
 
     /**
+     * @notice Withdraw tokens from the contract and transfer them to the recipient.
+     * @param _amount the amount of token to withdraw.
+     * @param _to address of the recipient of tokens
+     * @param _tokenAddr address of token to withdraw. Use address(0) for ETH
+     */
+    function adminWithdraw(
+        uint256 _amount,
+        address _to,
+        address _tokenAddr
+    ) external onlyRole(ADMIN_ROLE) {
+        require(_to != address(0));
+        if (_tokenAddr == address(0)) {
+            payable(_to).transfer(_amount);
+        } else {
+            IERC20(_tokenAddr).transfer(_to, _amount);
+        }
+    }
+
+    /**
      *
      * @param swapAmount the amount of swap
      * @dev calculate the fee amount that should be burnt
@@ -296,24 +315,5 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
         IERC20(nativeToken).safeTransfer(to_, netAmount);
 
         emit TokenSwapped(msg.sender, to_, mbToken, nativeToken, amount_);
-    }
-
-    /**
-     * @notice Withdraw tokens from the contract and transfer them to the recipient.
-     * @param _amount the amount of token to withdraw.
-     * @param _to address of the recipient of tokens
-     * @param _tokenAddr address of token to withdraw. Use address(0) for ETH
-     */
-    function adminWithdraw(
-        uint256 _amount,
-        address _to,
-        address _tokenAddr
-    ) external onlyRole(ADMIN_ROLE) {
-        require(_to != address(0));
-        if (_tokenAddr == address(0)) {
-            payable(_to).transfer(_amount);
-        } else {
-            IERC20(_tokenAddr).transfer(_to, _amount);
-        }
     }
 }
