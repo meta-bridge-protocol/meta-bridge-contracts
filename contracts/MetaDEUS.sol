@@ -7,5 +7,5 @@ contract MetaDEUS is MBToken {
     constructor(
         address _layerZeroEndpoint, // local endpoint address
         address _owner // token owner used as a delegate in LayerZero Endpoint
-    ) MBToken("MetaDEUS", "mbDEUS", _layerZeroEndpoint, _owner) {}
+    ) MBToken("MetaDEUS", "mbDEUS") {}
 }

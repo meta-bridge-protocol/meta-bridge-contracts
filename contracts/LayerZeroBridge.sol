@@ -4,7 +4,8 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import {ERC20Burnable} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {MessagingFee, SendParam, IMBToken, ILayerZeroEndpointV2} from "./interfaces/IMBToken.sol";
+import {IMBToken, ILayerZeroEndpointV2} from "./interfaces/IMBToken.sol";
+import {MessagingFee, IMetaOApp} from "./interfaces/IMetaOApp.sol";
 
 /**
  * @title LayerZeroBridge Contract
@@ -14,20 +15,26 @@ contract LayerZeroBridge is AccessControl {
     using SafeERC20 for ERC20Burnable;
 
     struct Token {
+        uint256 tokenId;
+        address nativeToken;
         address mbToken;
         address treasury; // The address of escrow
         address gateway;
         bool isMainChain;
         bool isBurnable;
+        bool isActive;
     }
 
     ILayerZeroEndpointV2 public lzEndpoint;
+    IMetaOApp public mbOApp;
 
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     bytes32 public constant TOKEN_ADDER_ROLE = keccak256("TOKEN_ADDER_ROLE");
 
-    // native token => Token
-    mapping(address => Token) public tokens;
+    // tokenId => Token
+    mapping(uint256 => Token) public tokens;
+    // nativeToken => tokenId
+    mapping(address => uint256) public tokenIds;
     mapping(uint256 => uint256) public dstFee;
 
     event TokenSent(
@@ -37,12 +44,14 @@ contract LayerZeroBridge is AccessControl {
         uint256 amount,
         uint256 brideFee
     );
-    event TokenAdd(address indexed token);
+    event TokenAdd(address indexed token, uint256 indexed tokenId);
     event TokenRemove(address indexed token);
     event TokenUpdate(address indexed token);
 
-    constructor(address _lzEndpoint) {
+    constructor(address _lzEndpoint, address _oApp) {
         lzEndpoint = ILayerZeroEndpointV2(_lzEndpoint);
+        mbOApp = IMetaOApp(_oApp);
+
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(ADMIN_ROLE, msg.sender);
     }
@@ -51,71 +60,62 @@ contract LayerZeroBridge is AccessControl {
     function send(
         address _nativeToken,
         uint32 _dstEid,
-        uint256 _amount,
-        uint256 _minAmountLD,
+        uint256 _amountLD,
         bytes calldata _extraOptions,
         MessagingFee calldata _fee
     ) external payable {
-        require(tokens[_nativeToken].mbToken != address(0), "Invalid token");
+        uint256 tokenId = tokenIds[_nativeToken];
+        require(tokenId != 0, "Invalid token");
         require(
             msg.value == _fee.nativeFee + dstFee[_dstEid],
             "Insufficient fee"
         );
-        ERC20Burnable token = ERC20Burnable(_nativeToken);
-        IMBToken mbToken = IMBToken(tokens[_nativeToken].mbToken);
+        require(tokens[tokenId].isActive, "Token is inactive");
 
-        if (
-            tokens[_nativeToken].isMainChain || !tokens[_nativeToken].isBurnable
-        ) {
-            uint256 balance = token.balanceOf(tokens[_nativeToken].treasury);
+        ERC20Burnable token = ERC20Burnable(_nativeToken);
+
+        if (tokens[tokenId].isMainChain || !tokens[tokenId].isBurnable) {
+            uint256 balance = token.balanceOf(tokens[tokenId].treasury);
             token.safeTransferFrom(
                 msg.sender,
-                tokens[_nativeToken].treasury,
-                _amount
+                tokens[tokenId].treasury,
+                _amountLD
             );
-            uint256 receivedAmount = token.balanceOf(
-                tokens[_nativeToken].treasury
-            ) - balance;
+            uint256 receivedAmount = token.balanceOf(tokens[tokenId].treasury) -
+                balance;
             require(
-                _amount == receivedAmount,
+                _amountLD == receivedAmount,
                 "Received amount does not match sent amount"
             );
         } else {
-            token.burnFrom(msg.sender, _amount);
+            token.burnFrom(msg.sender, _amountLD);
         }
 
         if (_fee.lzTokenFee > 0) {
             _payLzToken(_fee.lzTokenFee);
         }
 
-        mbToken.mint(address(this), _amount);
-
-        SendParam memory sendParams = SendParam({
-            dstEid: _dstEid, // Destination chain's endpoint ID.
-            to: bytes32(uint256(uint160(msg.sender))), // Recipient address.
-            amountLD: _amount, // Amount to send in local decimals.
-            minAmountLD: _minAmountLD, // Minimum amount to send in local decimals.
-            extraOptions: _extraOptions, // Additional options supplied by the caller to be used in the LayerZero message.
-            composeMsg: "", // The composed message for the send() operation.
-            oftCmd: "" // The OFT command to be executed, unused in default OFT implementations.
-        });
-
-        mbToken.send{value: msg.value - dstFee[_dstEid]}(
-            sendParams,
+        mbOApp.send{value: msg.value - dstFee[_dstEid]}(
+            _dstEid, // Destination chain's endpoint ID.
+            tokenId, // The id of token that will be bridged
+            bytes32(uint256(uint160(msg.sender))), // Recipient address.
+            _amountLD, // Amount to send in local decimals.
+            _extraOptions, // Additional options supplied by the caller to be used in the LayerZero message.
             _fee, // Fee struct containing native gas and ZRO token.
-            payable(msg.sender) // The refund address in case the send call reverts.
+            msg.sender
         );
 
         emit TokenSent(
             _nativeToken,
             _dstEid,
             msg.sender,
-            _amount,
+            _amountLD,
             dstFee[_dstEid]
         );
     }
 
     function addToken(
+        uint256 _tokenId,
         address _nativeToken,
         address _mbToken,
         address _treasury,
@@ -126,45 +126,67 @@ contract LayerZeroBridge is AccessControl {
         require(_nativeToken != address(0), "Invalid token");
         require(_mbToken != address(0), "Invalid mbToken");
         require(_gateway != address(0), "Invalid gateway");
-        require(tokens[_nativeToken].mbToken == address(0), "Already added");
+        require(
+            tokens[_tokenId].nativeToken == address(0),
+            "Token id id already used"
+        );
+        require(tokenIds[_nativeToken] == 0, "Token already exist");
 
-        Token storage token = tokens[_nativeToken];
+        tokenIds[_nativeToken] = _tokenId;
+
+        Token storage token = tokens[_tokenId];
+        token.tokenId = _tokenId;
+        token.nativeToken = _nativeToken;
         token.mbToken = _mbToken;
         token.treasury = _treasury;
         token.gateway = _gateway;
         token.isMainChain = _isMainChain;
         token.isBurnable = _isBurnable;
-        emit TokenAdd(_nativeToken);
+
+        emit TokenAdd(_nativeToken, _tokenId);
     }
 
     function removeToken(
         address _nativeToken
     ) external onlyRole(TOKEN_ADDER_ROLE) {
-        require(tokens[_nativeToken].mbToken != address(0), "Invalid token");
+        uint256 tokenId = tokenIds[_nativeToken];
+        require(tokenId != 0, "Invalid token");
 
-        delete tokens[_nativeToken];
+        delete tokens[tokenId];
+        delete tokenIds[_nativeToken];
         emit TokenRemove(_nativeToken);
     }
 
     function updateToken(
+        uint256 _tokenId,
         address _nativeToken,
         address _mbToken,
         address _treasury,
         address _gateway,
         bool _isMainChain,
-        bool _isBurnable
+        bool _isBurnable,
+        bool _isActive
     ) external onlyRole(TOKEN_ADDER_ROLE) {
-        require(tokens[_nativeToken].mbToken != address(0), "Invalid token");
+        require(tokens[_tokenId].nativeToken != address(0), "Invalid tokenId");
         require(_nativeToken != address(0), "Invalid token");
         require(_mbToken != address(0), "Invalid mbToken");
         require(_gateway != address(0), "Invalid gateway");
 
-        Token storage token = tokens[_nativeToken];
+        if (tokens[_tokenId].nativeToken != _nativeToken) {
+            require(tokenIds[_nativeToken] == 0, "Token already exists");
+            tokenIds[tokens[_tokenId].nativeToken] = 0;
+            tokenIds[_nativeToken] = _tokenId;
+        }
+
+        Token storage token = tokens[_tokenId];
+        token.nativeToken = _nativeToken;
         token.mbToken = _mbToken;
         token.treasury = _treasury;
         token.gateway = _gateway;
         token.isMainChain = _isMainChain;
         token.isBurnable = _isBurnable;
+        token.isActive = _isActive;
+
         emit TokenUpdate(_nativeToken);
     }
 
@@ -200,8 +222,7 @@ contract LayerZeroBridge is AccessControl {
         address _nativeToken,
         address _from,
         uint32 _dstEid,
-        uint256 _amount,
-        uint256 _minAmountLD,
+        uint256 _amountLD,
         bytes calldata _extraOptions,
         bool _payInLzToken
     )
@@ -209,19 +230,27 @@ contract LayerZeroBridge is AccessControl {
         view
         returns (uint256 nativeFee, uint256 lzTokenFee, uint256 bridgeFee)
     {
-        require(tokens[_nativeToken].mbToken != address(0), "Invalid token");
-        IMBToken mbToken = IMBToken(tokens[_nativeToken].mbToken);
-        SendParam memory sendParams = SendParam({
-            dstEid: _dstEid, // Destination chain's endpoint ID.
-            to: bytes32(uint256(uint160(_from))), // Recipient address.
-            amountLD: _amount, // Amount to send in local decimals.
-            minAmountLD: _minAmountLD, // Minimum amount to send in local decimals.
-            extraOptions: _extraOptions, // Additional options supplied by the caller to be used in the LayerZero message.
-            composeMsg: "", // The composed message for the send() operation.
-            oftCmd: "" // The OFT command to be executed, unused in default OFT implementations.
-        });
-        MessagingFee memory fee = mbToken.quoteSend(sendParams, _payInLzToken);
+        uint256 tokenId = tokenIds[_nativeToken];
+        require(tokenId != 0, "Invalid token");
+        MessagingFee memory fee = mbOApp.quoteSend(
+            _dstEid,
+            tokenId,
+            bytes32(uint256(uint160(_from))),
+            _amountLD,
+            _extraOptions,
+            _payInLzToken
+        );
         return (fee.nativeFee, fee.lzTokenFee, dstFee[_dstEid]);
+    }
+
+    /**
+     * @dev Get token info, It's used in MetaOApp
+     * @param _tokenId The id of token in the bridge
+     */
+    function getTokenById(
+        uint256 _tokenId
+    ) external view returns (Token memory) {
+        return tokens[_tokenId];
     }
 
     /**
