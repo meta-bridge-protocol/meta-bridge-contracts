@@ -201,6 +201,10 @@ contract LayerZeroBridge is AccessControl {
         lzEndpoint = ILayerZeroEndpointV2(_lzEndpoint);
     }
 
+    function setOApp(address _oApp) external onlyRole(ADMIN_ROLE) {
+        mbOApp = IMetaOApp(_oApp);
+    }
+
     function adminWithdraw(
         uint256 amount,
         address _to,
