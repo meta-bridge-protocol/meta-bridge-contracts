@@ -114,6 +114,17 @@ contract LayerZeroBridge is AccessControl {
         );
     }
 
+    /**
+     *
+     * @param _tokenId The unique token ID used in the bridge; it must be globally unique across all bridge contracts.
+     * @param _nativeToken The address of the native token to bridge to other chains
+     * @param _mbToken The address of the mbToken that acts as the intermediary token
+     * @param _treasury The treasury address for depositing tokens instead of burning them during the bridging process.
+     * We might do that in the main chain or when the token is not burnable
+     * @param _gateway The token gateway address
+     * @param _isMainChain Sepcifies if the current chain is the main chain or not
+     * @param _isBurnable Sepcifies if the token is burnable or not
+     */
     function addToken(
         uint256 _tokenId,
         address _nativeToken,
@@ -157,6 +168,17 @@ contract LayerZeroBridge is AccessControl {
         emit TokenRemove(_nativeToken);
     }
 
+    /**
+     *
+     * @param _tokenId The unique token ID used in the bridge; it must be globally unique across all bridge contracts.
+     * @param _nativeToken The address of the native token to bridge to other chains
+     * @param _mbToken The address of the mbToken that acts as the intermediary token
+     * @param _treasury The treasury address for depositing tokens instead of burning them during the bridging process.
+     * We might do that in the main chain or when the token is not burnable
+     * @param _gateway The token gateway address
+     * @param _isMainChain Sepcifies if the current chain is the main chain or not
+     * @param _isBurnable Sepcifies if the token is burnable or not
+     */
     function updateToken(
         uint256 _tokenId,
         address _nativeToken,
@@ -188,6 +210,11 @@ contract LayerZeroBridge is AccessControl {
         emit TokenUpdate(_nativeToken);
     }
 
+    /**
+     *
+     * @param _dstEid The destination LayerZero endpoint ID for the target chain.
+     * @param _fee The fee for bridging, denominated in the native gas token.
+     */
     function setBridgeFee(
         uint256 _dstEid,
         uint256 _fee
@@ -195,10 +222,18 @@ contract LayerZeroBridge is AccessControl {
         bridgeFee[_dstEid] = _fee;
     }
 
+    /**
+     *
+     * @param _lzEndpoint The address of the LayerZero endpoint
+     */
     function setLzEndpoint(address _lzEndpoint) external onlyRole(ADMIN_ROLE) {
         lzEndpoint = ILayerZeroEndpointV2(_lzEndpoint);
     }
 
+    /**
+     *
+     * @param _oApp The address of the LayerZero OApp used as the message-passing tool.
+     */
     function setOApp(address _oApp) external onlyRole(ADMIN_ROLE) {
         mbOApp = IMetaOApp(_oApp);
     }
