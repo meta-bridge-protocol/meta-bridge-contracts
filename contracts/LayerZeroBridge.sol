@@ -20,7 +20,6 @@ contract LayerZeroBridge is AccessControl {
         address mbToken;
         address treasury; // The address of escrow
         address gateway;
-        bool isMainChain;
         bool isBurnable;
         bool isActive;
     }
@@ -74,7 +73,9 @@ contract LayerZeroBridge is AccessControl {
 
         ERC20Burnable token = ERC20Burnable(_nativeToken);
 
-        if (tokens[tokenId].isMainChain || !tokens[tokenId].isBurnable) {
+        if (tokens[tokenId].isBurnable) {
+            token.burnFrom(msg.sender, _amountLD);
+        } else {
             uint256 balance = token.balanceOf(tokens[tokenId].treasury);
             token.safeTransferFrom(
                 msg.sender,
@@ -87,8 +88,6 @@ contract LayerZeroBridge is AccessControl {
                 _amountLD == receivedAmount,
                 "Received amount does not match sent amount"
             );
-        } else {
-            token.burnFrom(msg.sender, _amountLD);
         }
 
         if (_fee.lzTokenFee > 0) {
@@ -122,7 +121,6 @@ contract LayerZeroBridge is AccessControl {
      * @param _treasury The treasury address for depositing tokens instead of burning them during the bridging process.
      * We might do that in the main chain or when the token is not burnable
      * @param _gateway The token gateway address
-     * @param _isMainChain Sepcifies if the current chain is the main chain or not
      * @param _isBurnable Sepcifies if the token is burnable or not
      */
     function addToken(
@@ -131,7 +129,6 @@ contract LayerZeroBridge is AccessControl {
         address _mbToken,
         address _treasury,
         address _gateway,
-        bool _isMainChain,
         bool _isBurnable
     ) external onlyRole(TOKEN_ADDER_ROLE) {
         require(_nativeToken != address(0), "Invalid token");
@@ -143,6 +140,13 @@ contract LayerZeroBridge is AccessControl {
         );
         require(tokenIds[_nativeToken] == 0, "Token already exist");
 
+        if (!_isBurnable) {
+            require(
+                _treasury != address(0),
+                "Treasury address is mandatory for non-burnable tokens"
+            );
+        }
+
         tokenIds[_nativeToken] = _tokenId;
 
         Token storage token = tokens[_tokenId];
@@ -151,7 +155,6 @@ contract LayerZeroBridge is AccessControl {
         token.mbToken = _mbToken;
         token.treasury = _treasury;
         token.gateway = _gateway;
-        token.isMainChain = _isMainChain;
         token.isBurnable = _isBurnable;
 
         emit TokenAdd(_nativeToken, _tokenId);
@@ -176,7 +179,6 @@ contract LayerZeroBridge is AccessControl {
      * @param _treasury The treasury address for depositing tokens instead of burning them during the bridging process.
      * We might do that in the main chain or when the token is not burnable
      * @param _gateway The token gateway address
-     * @param _isMainChain Sepcifies if the current chain is the main chain or not
      * @param _isBurnable Sepcifies if the token is burnable or not
      */
     function updateToken(
@@ -185,13 +187,19 @@ contract LayerZeroBridge is AccessControl {
         address _mbToken,
         address _treasury,
         address _gateway,
-        bool _isMainChain,
         bool _isBurnable
     ) external onlyRole(TOKEN_ADDER_ROLE) {
         require(tokens[_tokenId].nativeToken != address(0), "Invalid tokenId");
         require(_nativeToken != address(0), "Invalid token");
         require(_mbToken != address(0), "Invalid mbToken");
         require(_gateway != address(0), "Invalid gateway");
+
+        if (!_isBurnable) {
+            require(
+                _treasury != address(0),
+                "Treasury address is mandatory for non-burnable tokens"
+            );
+        }
 
         if (tokens[_tokenId].nativeToken != _nativeToken) {
             require(tokenIds[_nativeToken] == 0, "Token already exists");
@@ -204,7 +212,6 @@ contract LayerZeroBridge is AccessControl {
         token.mbToken = _mbToken;
         token.treasury = _treasury;
         token.gateway = _gateway;
-        token.isMainChain = _isMainChain;
         token.isBurnable = _isBurnable;
 
         emit TokenUpdate(_nativeToken);
