@@ -164,8 +164,7 @@ contract LayerZeroBridge is AccessControl {
         address _treasury,
         address _gateway,
         bool _isMainChain,
-        bool _isBurnable,
-        bool _isActive
+        bool _isBurnable
     ) external onlyRole(TOKEN_ADDER_ROLE) {
         require(tokens[_tokenId].nativeToken != address(0), "Invalid tokenId");
         require(_nativeToken != address(0), "Invalid token");
@@ -185,7 +184,6 @@ contract LayerZeroBridge is AccessControl {
         token.gateway = _gateway;
         token.isMainChain = _isMainChain;
         token.isBurnable = _isBurnable;
-        token.isActive = _isActive;
 
         emit TokenUpdate(_nativeToken);
     }
@@ -203,6 +201,20 @@ contract LayerZeroBridge is AccessControl {
 
     function setOApp(address _oApp) external onlyRole(ADMIN_ROLE) {
         mbOApp = IMetaOApp(_oApp);
+    }
+
+    /**
+     *
+     * @param _tokenId Id of the bridge token
+     * @param _isActive Activation status true|false
+     */
+    function setTokenStatus(
+        uint256 _tokenId,
+        bool _isActive
+    ) external onlyRole(ADMIN_ROLE) {
+        require(tokens[_tokenId].nativeToken != address(0), "Invalid tokenId");
+
+        tokens[_tokenId].isActive = _isActive;
     }
 
     function adminWithdraw(
