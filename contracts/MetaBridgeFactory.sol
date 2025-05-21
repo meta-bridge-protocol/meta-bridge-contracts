@@ -23,16 +23,9 @@ contract MetaBridgeFactory is Ownable {
         uint256 _tokenId,
         address _nativeToken,
         address _bridgeTreasury,
-        bool _isMainChain,
         bool _isBurnable
     ) external {
-        _listToken(
-            _tokenId,
-            _nativeToken,
-            _bridgeTreasury,
-            _isMainChain,
-            _isBurnable
-        );
+        _listToken(_tokenId, _nativeToken, _bridgeTreasury, _isBurnable);
     }
 
     function ListNewToken(
@@ -40,18 +33,11 @@ contract MetaBridgeFactory is Ownable {
         uint256 _maxSupply,
         string memory _name,
         string memory _symbol,
-        address _bridgeTreasury,
-        bool _isMainChain
+        address _bridgeTreasury
     ) external {
         NativeToken nativeToken = new NativeToken(_maxSupply, _name, _symbol);
 
-        _listToken(
-            _tokenId,
-            address(nativeToken),
-            _bridgeTreasury,
-            _isMainChain,
-            true
-        );
+        _listToken(_tokenId, address(nativeToken), _bridgeTreasury, true);
     }
 
     /**
@@ -74,7 +60,6 @@ contract MetaBridgeFactory is Ownable {
         uint256 _tokenId,
         address _nativeToken,
         address _bridgeTreasury,
-        bool _isMainChain,
         bool _isBurnable
     ) internal {
         string memory tokenName = ERC20(_nativeToken).name();
@@ -100,7 +85,6 @@ contract MetaBridgeFactory is Ownable {
             address(mbToken),
             _bridgeTreasury,
             address(gateway),
-            _isMainChain,
             _isBurnable
         );
 

@@ -8,7 +8,6 @@ interface ILayerZeroBridge {
         address nativeToken;
         address treasury;
         address gateway;
-        bool isMainChain;
         bool isBurnable;
         bool isActive;
     }
@@ -19,7 +18,6 @@ interface ILayerZeroBridge {
         address _mbToken,
         address _treasury,
         address _gateway,
-        bool _isMainChain,
         bool _isBurnable
     ) external;
 
