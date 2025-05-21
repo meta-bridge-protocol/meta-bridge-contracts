@@ -11,16 +11,10 @@ contract MetaBridgeFactory is Ownable {
     event GatewayCreated(address owner, address gateway);
     event MBTokenCreated(address owner, address mbToken);
 
-    address public lzEndpoint;
     address public lzBridge;
     address public mbOApp;
 
-    constructor(
-        address _lzEndpoint,
-        address _lzBridge,
-        address _mbOApp
-    ) Ownable(msg.sender) {
-        lzEndpoint = _lzEndpoint;
+    constructor(address _lzBridge, address _mbOApp) Ownable(msg.sender) {
         lzBridge = _lzBridge;
         mbOApp = _mbOApp;
     }
@@ -58,6 +52,22 @@ contract MetaBridgeFactory is Ownable {
             _isMainChain,
             true
         );
+    }
+
+    /**
+     *
+     * @param _lzBridge The address of the bridge contract
+     */
+    function setLzBridge(address _lzBridge) external onlyOwner {
+        lzBridge = _lzBridge;
+    }
+
+    /**
+     *
+     * @param _oApp The address of the LayerZero OApp used as the message-passing tool in the bridge.
+     */
+    function setOApp(address _oApp) external onlyOwner {
+        mbOApp = _oApp;
     }
 
     function _listToken(
