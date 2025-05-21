@@ -8,8 +8,14 @@ import "./Gateway.sol";
 import "./MBToken.sol";
 
 contract MetaBridgeFactory is Ownable {
+    event TokenListed(
+        address indexed nativeToken,
+        address indexed mbToken,
+        uint256 tokenId
+    );
     event GatewayCreated(address owner, address gateway);
     event MBTokenCreated(address owner, address mbToken);
+    event NativeTokenCreated(address owner, address token);
 
     address public lzBridge;
     address public mbOApp;
@@ -59,6 +65,8 @@ contract MetaBridgeFactory is Ownable {
             _symbol,
             msg.sender
         );
+
+        emit NativeTokenCreated(msg.sender, address(nativeToken));
 
         _listToken(_tokenId, address(nativeToken), _bridgeTreasury, true);
     }
@@ -113,5 +121,6 @@ contract MetaBridgeFactory is Ownable {
 
         emit MBTokenCreated(msg.sender, address(mbToken));
         emit GatewayCreated(msg.sender, address(gateway));
+        emit TokenListed(msg.sender, _nativeToken, _tokenId);
     }
 }
