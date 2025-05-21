@@ -35,7 +35,7 @@ contract LayerZeroBridge is AccessControl {
     mapping(uint256 => Token) public tokens;
     // nativeToken => tokenId
     mapping(address => uint256) public tokenIds;
-    mapping(uint256 => uint256) public dstFee;
+    mapping(uint256 => uint256) public bridgeFee;
 
     event TokenSent(
         address indexed token,
@@ -67,7 +67,7 @@ contract LayerZeroBridge is AccessControl {
         uint256 tokenId = tokenIds[_nativeToken];
         require(tokenId != 0, "Invalid token");
         require(
-            msg.value == _fee.nativeFee + dstFee[_dstEid],
+            msg.value == _fee.nativeFee + bridgeFee[_dstEid],
             "Insufficient fee"
         );
         require(tokens[tokenId].isActive, "Token is inactive");
@@ -95,7 +95,7 @@ contract LayerZeroBridge is AccessControl {
             _payLzToken(_fee.lzTokenFee);
         }
 
-        mbOApp.send{value: msg.value - dstFee[_dstEid]}(
+        mbOApp.send{value: msg.value - bridgeFee[_dstEid]}(
             _dstEid, // Destination chain's endpoint ID.
             tokenId, // The id of token that will be bridged
             bytes32(uint256(uint160(msg.sender))), // Recipient address.
@@ -110,7 +110,7 @@ contract LayerZeroBridge is AccessControl {
             _dstEid,
             msg.sender,
             _amountLD,
-            dstFee[_dstEid]
+            bridgeFee[_dstEid]
         );
     }
 
@@ -190,11 +190,11 @@ contract LayerZeroBridge is AccessControl {
         emit TokenUpdate(_nativeToken);
     }
 
-    function setDstFee(
+    function setBridgeFee(
         uint256 _dstEid,
         uint256 _fee
     ) external onlyRole(ADMIN_ROLE) {
-        dstFee[_dstEid] = _fee;
+        bridgeFee[_dstEid] = _fee;
     }
 
     function setLzEndpoint(address _lzEndpoint) external onlyRole(ADMIN_ROLE) {
@@ -219,8 +219,9 @@ contract LayerZeroBridge is AccessControl {
     }
 
     /* @dev Quotes the gas needed to pay for the full omnichain transaction.
-     * @return nativeFee Estimated gas fee in native gas.
-     * @return lzTokenFee Estimated gas fee in ZRO token.
+     * @return _nativeFee Estimated gas fee in native gas.
+     * @return _lzTokenFee Estimated gas fee in ZRO token.
+     * @return _bridgeFee Applied bridge fee in native gas.
      */
     function quoteSend(
         address _nativeToken,
@@ -232,7 +233,7 @@ contract LayerZeroBridge is AccessControl {
     )
         external
         view
-        returns (uint256 nativeFee, uint256 lzTokenFee, uint256 bridgeFee)
+        returns (uint256 _nativeFee, uint256 _lzTokenFee, uint256 _bridgeFee)
     {
         uint256 tokenId = tokenIds[_nativeToken];
         require(tokenId != 0, "Invalid token");
@@ -244,7 +245,7 @@ contract LayerZeroBridge is AccessControl {
             _extraOptions,
             _payInLzToken
         );
-        return (fee.nativeFee, fee.lzTokenFee, dstFee[_dstEid]);
+        return (fee.nativeFee, fee.lzTokenFee, bridgeFee[_dstEid]);
     }
 
     /**
