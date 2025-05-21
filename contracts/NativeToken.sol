@@ -19,10 +19,11 @@ contract NativeToken is ERC20Burnable, AccessControl {
     constructor(
         uint256 _maxSupply,
         string memory _name,
-        string memory _symbol
+        string memory _symbol,
+        address _admin
     ) ERC20(_name, _symbol) {
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        _grantRole(ADMIN_ROLE, msg.sender);
+        _grantRole(DEFAULT_ADMIN_ROLE, _admin);
+        _grantRole(ADMIN_ROLE, _admin);
 
         maxSupply = _maxSupply;
     }

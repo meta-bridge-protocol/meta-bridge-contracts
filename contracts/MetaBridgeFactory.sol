@@ -19,6 +19,14 @@ contract MetaBridgeFactory is Ownable {
         mbOApp = _mbOApp;
     }
 
+    /**
+     * @notice List already deployed tokens on MetaBridge
+     * @param _tokenId The unique token ID used in the bridge; it must be globally unique across all bridge contracts.
+     * @param _nativeToken The address of the native token to be bridged to other chains
+     * @param _bridgeTreasury The treasury address for depositing tokens instead of burning them during
+     *  the bridging process. We might do that in the main chain or when the token is not burnable
+     * @param _isBurnable Sepcifies if the token is burnable or not
+     */
     function ListExistingToken(
         uint256 _tokenId,
         address _nativeToken,
@@ -28,6 +36,16 @@ contract MetaBridgeFactory is Ownable {
         _listToken(_tokenId, _nativeToken, _bridgeTreasury, _isBurnable);
     }
 
+    /**
+     * @notice List non-existing tokens on MetaBridge. It will automatically create and deploy the token.
+     * Token will be a mintable/burnable ERC20 token.
+     * @param _tokenId The unique token ID used in the bridge; it must be globally unique across all bridge contracts.
+     * @param _maxSupply The max supply of the token on current chain
+     * @param _name The name of the token
+     * @param _symbol The symbol of the token
+     * @param _bridgeTreasury The treasury address for depositing tokens instead of burning them during
+     *  the bridging process. We might do that in the main chain or when the token is not burnable
+     */
     function ListNewToken(
         uint256 _tokenId,
         uint256 _maxSupply,
@@ -35,7 +53,12 @@ contract MetaBridgeFactory is Ownable {
         string memory _symbol,
         address _bridgeTreasury
     ) external {
-        NativeToken nativeToken = new NativeToken(_maxSupply, _name, _symbol);
+        NativeToken nativeToken = new NativeToken(
+            _maxSupply,
+            _name,
+            _symbol,
+            msg.sender
+        );
 
         _listToken(_tokenId, address(nativeToken), _bridgeTreasury, true);
     }
