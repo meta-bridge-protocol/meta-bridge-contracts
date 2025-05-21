@@ -55,7 +55,16 @@ contract LayerZeroBridge is AccessControl {
         _grantRole(ADMIN_ROLE, msg.sender);
     }
 
-    // Sends a message from the source to destination chain.
+    /**
+     * @notice Sends a message from the source to destination chain.
+     * @param _nativeToken The address of the token that should be bridged
+     * @param _dstEid Destination chain's endpoint ID.
+     * @param _amountLD Amount to bridge in local decimals
+     * @param _extraOptions Message execution options (e.g., for sending gas to destination).
+     * @param _fee The calculated fee for the send() operation. It's retrieved from quoteSend
+     *      - nativeFee: The native fee.
+     *      - lzTokenFee: The lzToken fee.
+     */
     function send(
         address _nativeToken,
         uint32 _dstEid,
@@ -160,6 +169,10 @@ contract LayerZeroBridge is AccessControl {
         emit TokenAdd(_nativeToken, _tokenId);
     }
 
+    /**
+     *
+     * @param _nativeToken The address of token to remove
+     */
     function removeToken(
         address _nativeToken
     ) external onlyRole(TOKEN_ADDER_ROLE) {
@@ -259,6 +272,12 @@ contract LayerZeroBridge is AccessControl {
         tokens[_tokenId].isActive = _isActive;
     }
 
+    /**
+     * @notice It lets admin withdraw surplus funds from the bridge
+     * @param amount The amount to withdraw
+     * @param _to Address of recipient
+     * @param _tokenAddr The address of token to withdraw. Use address(0) for native gas token
+     */
     function adminWithdraw(
         uint256 amount,
         address _to,
