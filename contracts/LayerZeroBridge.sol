@@ -9,7 +9,8 @@ import {MessagingFee, IMetaOApp} from "./interfaces/IMetaOApp.sol";
 
 /**
  * @title LayerZeroBridge Contract
- * @dev LayerZeroBridge is aimed at locking native token on src chain, then mint and send mbToken to the dst chain.
+ * @dev LayerZeroBridge is aimed at locking native token on src chain,
+ * then send a mint msg to the dst chain through mbOApp.
  */
 contract LayerZeroBridge is AccessControl {
     using SafeERC20 for ERC20Burnable;
