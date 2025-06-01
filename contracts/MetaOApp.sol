@@ -7,8 +7,11 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IGateway} from "./interfaces/IGateway.sol";
 import {MBToken} from "./MBToken.sol";
 import {ILayerZeroBridge} from "./interfaces/ILayerZeroBridge.sol";
+import {OAppMsgCodec} from "./utils/OAppMsgCodec.sol";
 
 contract MetaOApp is OApp {
+    using OAppMsgCodec for bytes32;
+
     ILayerZeroBridge public lzBridge;
 
     // @notice Provides a conversion rate when swapping between denominations of SD and LD
@@ -171,9 +174,9 @@ contract MetaOApp is OApp {
         address _executor,
         bytes calldata _extraData
     ) internal override {
-        (uint256 tokenId, address receiver, uint64 amount) = abi.decode(
+        (uint256 tokenId, bytes32 receiver, uint64 amount) = abi.decode(
             _payload,
-            (uint256, address, uint64)
+            (uint256, bytes32, uint64)
         );
 
         ILayerZeroBridge.Token memory bridgeToken = lzBridge.getTokenById(
@@ -185,13 +188,13 @@ contract MetaOApp is OApp {
 
         mbToken.mint(address(this), _toLD(amount));
         mbToken.approve(address(gateway), amount);
-        gateway.swapToNativeTo(amount, receiver);
+        gateway.swapToNativeTo(amount, receiver.bytes32ToAddress());
 
         emit TokenReceived(
             _origin.srcEid,
             _origin.sender,
             _guid,
-            receiver,
+            receiver.bytes32ToAddress(),
             amount,
             _executor,
             _extraData
