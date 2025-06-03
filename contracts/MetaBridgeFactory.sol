@@ -121,6 +121,6 @@ contract MetaBridgeFactory is Ownable {
 
         emit MBTokenCreated(msg.sender, address(mbToken));
         emit GatewayCreated(msg.sender, address(gateway));
-        emit TokenListed(msg.sender, _nativeToken, _tokenId);
+        emit TokenListed(_nativeToken, address(mbToken), _tokenId);
     }
 }
