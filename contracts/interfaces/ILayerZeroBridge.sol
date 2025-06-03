@@ -4,8 +4,8 @@ pragma solidity ^0.8.20;
 interface ILayerZeroBridge {
     struct Token {
         uint256 tokenId;
-        address mbToken;
         address nativeToken;
+        address mbToken;
         address treasury;
         address gateway;
         bool isBurnable;
