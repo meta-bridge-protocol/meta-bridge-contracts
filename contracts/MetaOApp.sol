@@ -186,16 +186,18 @@ contract MetaOApp is OApp {
         MBToken mbToken = MBToken(bridgeToken.mbToken);
         IGateway gateway = IGateway(bridgeToken.gateway);
 
-        mbToken.mint(address(this), _toLD(amount));
-        mbToken.approve(address(gateway), amount);
-        gateway.swapToNativeTo(amount, receiver.bytes32ToAddress());
+        uint256 amountLD = _toLD(amount);
+
+        mbToken.mint(address(this), amountLD);
+        mbToken.approve(address(gateway), amountLD);
+        gateway.swapToNativeTo(amountLD, receiver.bytes32ToAddress());
 
         emit TokenReceived(
             _origin.srcEid,
             _origin.sender,
             _guid,
             receiver.bytes32ToAddress(),
-            amount,
+            amountLD,
             _executor,
             _extraData
         );
