@@ -9,7 +9,7 @@ async function main() {
 
   const args = [
     "0x6EDCE65403992e310A62460808c4b910D972f10f",
-    "0x85CCfF287F5810Df56345e94D97D44a0CAb5Ab58"
+    "0x4Fa47b84a020D89888D79B16F120673F7906F17b"
   ]
 
   const provider = new providers.JsonRpcProvider(hre.network.config.url)

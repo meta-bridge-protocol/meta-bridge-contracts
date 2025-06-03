@@ -34,7 +34,7 @@ const networks: { [networkName: string]: HttpNetworkUserConfig } = {
   },
   bscTestnet: {
     eid: EndpointId.BSC_V2_TESTNET,
-    url: "https://rpc.ankr.com/bsc_testnet_chapel",
+    url: "https://bsc-testnet-rpc.publicnode.com",
     chainId: 97,
     accounts,
   },
@@ -65,7 +65,7 @@ const networks: { [networkName: string]: HttpNetworkUserConfig } = {
   },
   fuji: {
     eid: EndpointId.AVALANCHE_V2_TESTNET,
-    url: `https://avalanche-fuji.blockpi.network/v1/rpc/public`,
+    url: `https://avalanche-fuji-c-chain-rpc.publicnode.com`,
     chainId: 43113,
     accounts,
   },
@@ -97,7 +97,7 @@ const config: HardhatUserConfig = {
             enabled: true,
             runs: 200,
           },
-          // viaIR: true,
+          viaIR: true,
           // outputSelection: {
           //   "*": {
           //     "*": [
