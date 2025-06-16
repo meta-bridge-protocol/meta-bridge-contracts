@@ -13,9 +13,11 @@ contract MBToken is ERC20Burnable, AccessControl {
 
     constructor(
         string memory _name,
-        string memory _symbol
+        string memory _symbol,
+        address _mbOApp
     ) ERC20(_name, _symbol) AccessControl() {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(MINTER_ROLE, _mbOApp);
     }
 
     /**

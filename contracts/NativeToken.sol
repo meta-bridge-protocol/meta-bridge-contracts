@@ -41,6 +41,20 @@ contract NativeToken is ERC20Burnable, AccessControl {
     }
 
     /**
+     * @dev This is called by the deployer contract
+     * This will assign the admin roles (DEFAULT_ADMIN_ROLE, ADMIN_ROLE) to the new admin
+     * @param _newAdmin address of new admin
+     */
+    function transferAdminRoles(
+        address _newAdmin
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _revokeRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _revokeRole(ADMIN_ROLE, msg.sender);
+        _grantRole(DEFAULT_ADMIN_ROLE, _newAdmin);
+        _grantRole(ADMIN_ROLE, _newAdmin);
+    }
+
+    /**
      * @dev See {ERC20-_update}.
      */
     function _update(

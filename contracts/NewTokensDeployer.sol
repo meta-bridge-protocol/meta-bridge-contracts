@@ -4,10 +4,10 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./interfaces/ILayerZeroBridge.sol";
 import "./NativeToken.sol";
-import "./Gateway.sol";
+import "./MinterGateway.sol";
 import "./MBToken.sol";
 
-contract MetaBridgeFactory is Ownable {
+contract NewTokensDeployer is Ownable {
     event TokenListed(
         address indexed nativeToken,
         address indexed mbToken,
@@ -23,23 +23,6 @@ contract MetaBridgeFactory is Ownable {
     constructor(address _lzBridge, address _mbOApp) Ownable(msg.sender) {
         lzBridge = _lzBridge;
         mbOApp = _mbOApp;
-    }
-
-    /**
-     * @notice List already deployed tokens on MetaBridge
-     * @param _tokenId The unique token ID used in the bridge; it must be globally unique across all bridge contracts.
-     * @param _nativeToken The address of the native token to be bridged to other chains
-     * @param _bridgeTreasury The treasury address for depositing tokens instead of burning them during
-     *  the bridging process. We might do that in the main chain or when the token is not burnable
-     * @param _isBurnable Sepcifies if the token is burnable or not
-     */
-    function ListExistingToken(
-        uint256 _tokenId,
-        address _nativeToken,
-        address _bridgeTreasury,
-        bool _isBurnable
-    ) external {
-        _listToken(_tokenId, _nativeToken, _bridgeTreasury, _isBurnable);
     }
 
     /**
@@ -63,12 +46,35 @@ contract MetaBridgeFactory is Ownable {
             _maxSupply,
             _name,
             _symbol,
-            msg.sender
+            address(this)
+        );
+
+        MBToken mbToken = new MBToken(
+            string.concat("Meta", _name),
+            string.concat("mb", _symbol),
+            mbOApp
+        );
+        MinterGateway gateway = new MinterGateway(
+            msg.sender,
+            address(nativeToken),
+            address(mbToken)
+        );
+
+        _setupRoles(address(nativeToken), address(mbToken), address(gateway));
+
+        ILayerZeroBridge(lzBridge).addToken(
+            _tokenId,
+            address(nativeToken),
+            address(mbToken),
+            _bridgeTreasury,
+            address(gateway),
+            true
         );
 
         emit NativeTokenCreated(msg.sender, address(nativeToken));
-
-        _listToken(_tokenId, address(nativeToken), _bridgeTreasury, true);
+        emit MBTokenCreated(msg.sender, address(mbToken));
+        emit GatewayCreated(msg.sender, address(gateway));
+        emit TokenListed(address(nativeToken), address(mbToken), _tokenId);
     }
 
     /**
@@ -87,40 +93,18 @@ contract MetaBridgeFactory is Ownable {
         mbOApp = _oApp;
     }
 
-    function _listToken(
-        uint256 _tokenId,
+    function _setupRoles(
         address _nativeToken,
-        address _bridgeTreasury,
-        bool _isBurnable
+        address _mbToken,
+        address _gateway
     ) internal {
-        string memory tokenName = ERC20(_nativeToken).name();
-        string memory tokenSymbol = ERC20(_nativeToken).symbol();
+        NativeToken nativeToken = NativeToken(_nativeToken);
+        MBToken mbToken = MBToken(_mbToken);
 
-        MBToken mbToken = new MBToken(
-            string.concat("Meta", tokenName),
-            string.concat("mb", tokenSymbol),
-            mbOApp
-        );
-        Gateway gateway = new Gateway(
-            msg.sender,
-            _nativeToken,
-            address(mbToken)
-        );
+        nativeToken.grantRole(nativeToken.MINTER_ROLE(), _gateway);
+        nativeToken.transferAdminRoles(msg.sender);
 
         mbToken.grantRole(mbToken.DEFAULT_ADMIN_ROLE(), msg.sender);
         mbToken.renounceRole(mbToken.DEFAULT_ADMIN_ROLE(), address(this));
-
-        ILayerZeroBridge(lzBridge).addToken(
-            _tokenId,
-            _nativeToken,
-            address(mbToken),
-            _bridgeTreasury,
-            address(gateway),
-            _isBurnable
-        );
-
-        emit MBTokenCreated(msg.sender, address(mbToken));
-        emit GatewayCreated(msg.sender, address(gateway));
-        emit TokenListed(_nativeToken, address(mbToken), _tokenId);
     }
 }
