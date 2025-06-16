@@ -8,14 +8,14 @@ function sleep(milliseconds) {
 async function main() {
 
   const args = [
-    "0x725B95E58d781e3364fEB1d83271548EFC8D9034",
-    "0x85CCfF287F5810Df56345e94D97D44a0CAb5Ab58"
+    "0x2bfff3Bb7F6C83c25117C46a744D089fC2274Af5",
+    "0x4Fa47b84a020D89888D79B16F120673F7906F17b"
   ]
 
   const provider = new providers.JsonRpcProvider(hre.network.config.url)
   const signer = new Wallet(process.env.PRIVATE_KEY, provider);
 
-  const contract = await ethers.deployContract("MetaBridgeFactory", args, signer);
+  const contract = await ethers.deployContract("NewTokensDeployer", args, signer);
 
   await contract.deployed();
 
