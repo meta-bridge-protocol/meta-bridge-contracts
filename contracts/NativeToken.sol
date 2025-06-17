@@ -20,12 +20,15 @@ contract NativeToken is ERC20Burnable, AccessControl {
         uint256 _maxSupply,
         string memory _name,
         string memory _symbol,
-        address _admin
+        address _admin,
+        address _treasury
     ) ERC20(_name, _symbol) {
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
         _grantRole(ADMIN_ROLE, _admin);
 
         maxSupply = _maxSupply;
+
+        _mint(_treasury, _maxSupply);
     }
 
     function mint(address to, uint256 amount) external onlyRole(MINTER_ROLE) {

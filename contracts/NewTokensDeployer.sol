@@ -32,7 +32,7 @@ contract NewTokensDeployer is Ownable {
      * @param _maxSupply The max supply of the token on current chain
      * @param _name The name of the token
      * @param _symbol The symbol of the token
-     * @param _bridgeTreasury The treasury address for depositing tokens instead of burning them during
+     * @param _treasury The treasury address for depositing tokens instead of burning them during
      *  the bridging process. We might do that in the main chain or when the token is not burnable
      */
     function ListNewToken(
@@ -40,13 +40,14 @@ contract NewTokensDeployer is Ownable {
         uint256 _maxSupply,
         string memory _name,
         string memory _symbol,
-        address _bridgeTreasury
+        address _treasury
     ) external {
         NativeToken nativeToken = new NativeToken(
             _maxSupply,
             _name,
             _symbol,
-            address(this)
+            address(this),
+            _treasury
         );
 
         MBToken mbToken = new MBToken(
@@ -66,7 +67,7 @@ contract NewTokensDeployer is Ownable {
             _tokenId,
             address(nativeToken),
             address(mbToken),
-            _bridgeTreasury,
+            _treasury,
             address(gateway),
             true
         );

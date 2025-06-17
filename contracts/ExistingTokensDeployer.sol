@@ -29,14 +29,14 @@ contract ExistingTokensDeployer is Ownable {
      * @notice List already deployed tokens on MetaBridge
      * @param _tokenId The unique token ID used in the bridge; it must be globally unique across all bridge contracts.
      * @param _nativeToken The address of the native token to be bridged to other chains
-     * @param _bridgeTreasury The treasury address for depositing tokens instead of burning them during
+     * @param _treasury The treasury address for depositing tokens instead of burning them during
      *  the bridging process. We might do that in the main chain or when the token is not burnable
      * @param _isBurnable Sepcifies if the token is burnable or not
      */
     function ListExistingToken(
         uint256 _tokenId,
         address _nativeToken,
-        address _bridgeTreasury,
+        address _treasury,
         bool _isBurnable
     ) external {
         string memory tokenName = ERC20(_nativeToken).name();
@@ -60,7 +60,7 @@ contract ExistingTokensDeployer is Ownable {
             _tokenId,
             _nativeToken,
             address(mbToken),
-            _bridgeTreasury,
+            _treasury,
             address(gateway),
             _isBurnable
         );
