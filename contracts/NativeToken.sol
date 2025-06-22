@@ -28,7 +28,8 @@ contract NativeToken is ERC20Burnable, AccessControl {
 
         maxSupply = _maxSupply;
 
-        _mint(_treasury, _maxSupply);
+        // TODO: This line is for test. Should be remove in mainnet deployment
+        _mint(_treasury, (_maxSupply * 5) / 100);
     }
 
     function mint(address to, uint256 amount) external onlyRole(MINTER_ROLE) {
