@@ -3,7 +3,6 @@ pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./interfaces/ILayerZeroBridge.sol";
-import "./NativeToken.sol";
 import "./Gateway.sol";
 import "./MBToken.sol";
 
@@ -15,7 +14,6 @@ contract ExistingTokensDeployer is Ownable {
     );
     event GatewayCreated(address owner, address gateway);
     event MBTokenCreated(address owner, address mbToken);
-    event NativeTokenCreated(address owner, address token);
 
     address public lzBridge;
     address public mbOApp;
