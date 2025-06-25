@@ -46,8 +46,7 @@ contract NewTokensDeployer is Ownable {
             _maxSupply,
             _name,
             _symbol,
-            address(this),
-            _treasury
+            address(this)
         );
 
         MBToken mbToken = new MBToken(
