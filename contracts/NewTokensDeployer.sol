@@ -102,6 +102,7 @@ contract NewTokensDeployer is Ownable {
         MBToken mbToken = MBToken(_mbToken);
 
         nativeToken.grantRole(nativeToken.MINTER_ROLE(), _gateway);
+        nativeToken.grantRole(nativeToken.MINTER_ROLE(), msg.sender);
         nativeToken.transferAdminRoles(msg.sender);
 
         mbToken.grantRole(mbToken.DEFAULT_ADMIN_ROLE(), msg.sender);
