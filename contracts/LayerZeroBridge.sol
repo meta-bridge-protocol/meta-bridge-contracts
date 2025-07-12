@@ -23,6 +23,7 @@ contract LayerZeroBridge is AccessControl {
         address gateway;
         bool isBurnable;
         bool isActive;
+        bool isWhitelisted;
     }
 
     ILayerZeroEndpointV2 public lzEndpoint;
@@ -166,6 +167,7 @@ contract LayerZeroBridge is AccessControl {
         token.treasury = _treasury;
         token.gateway = _gateway;
         token.isBurnable = _isBurnable;
+        token.isActive = true;
 
         emit TokenAdd(_nativeToken, _tokenId);
     }
@@ -261,16 +263,20 @@ contract LayerZeroBridge is AccessControl {
 
     /**
      *
-     * @param _tokenId Id of the bridge token
+     * @param _nativeToken Address of token
      * @param _isActive Activation status true|false
+     * @param _isWhitelist whitelist flag true|false
      */
     function setTokenStatus(
-        uint256 _tokenId,
-        bool _isActive
+        address _nativeToken,
+        bool _isActive,
+        bool _isWhitelist
     ) external onlyRole(ADMIN_ROLE) {
-        require(tokens[_tokenId].nativeToken != address(0), "Invalid tokenId");
+        uint256 tokenId = tokenIds[_nativeToken];
+        require(tokenId != 0, "Invalid token");
 
-        tokens[_tokenId].isActive = _isActive;
+        tokens[tokenId].isActive = _isActive;
+        tokens[tokenId].isWhitelisted = _isWhitelist;
     }
 
     /**
