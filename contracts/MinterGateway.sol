@@ -134,6 +134,9 @@ contract MinterGateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
     ) external onlyRole(CONFIG_ROLE) {
         require(_burnFeeScale > 0, "Invalid burnFeeScale");
         require(_treasuryFeeScale > 0, "Invalid treasuryFeeScale");
+        if (_treasuryFee > 0) {
+            require(_feeTreasury != address(0), "Invalid feeTreasury address");
+        }
 
         periodLength = _periodLength;
         periodMaxAmount = _maxAmount;
