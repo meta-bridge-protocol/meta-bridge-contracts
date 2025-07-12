@@ -40,7 +40,8 @@ contract NewTokensDeployer is Ownable {
         uint256 _maxSupply,
         string memory _name,
         string memory _symbol,
-        address _treasury
+        address _treasury,
+        bool _isHomeChain
     ) external {
         NativeToken nativeToken = new NativeToken(
             _maxSupply,
@@ -59,6 +60,10 @@ contract NewTokensDeployer is Ownable {
             address(nativeToken),
             address(mbToken)
         );
+
+        if (_isHomeChain) {
+            nativeToken.mint(_treasury, _maxSupply);
+        }
 
         _setupRoles(address(nativeToken), address(mbToken), address(gateway));
 
@@ -102,7 +107,7 @@ contract NewTokensDeployer is Ownable {
         MBToken mbToken = MBToken(_mbToken);
 
         nativeToken.grantRole(nativeToken.MINTER_ROLE(), _gateway);
-        nativeToken.grantRole(nativeToken.MINTER_ROLE(), msg.sender);
+        nativeToken.renounceRole(nativeToken.MINTER_ROLE(), address(this));
         nativeToken.transferAdminRoles(msg.sender);
 
         mbToken.grantRole(mbToken.DEFAULT_ADMIN_ROLE(), msg.sender);

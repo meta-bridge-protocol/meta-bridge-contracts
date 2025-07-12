@@ -24,6 +24,7 @@ contract NativeToken is ERC20Burnable, AccessControl {
     ) ERC20(_name, _symbol) {
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
         _grantRole(ADMIN_ROLE, _admin);
+        _grantRole(MINTER_ROLE, _admin);
 
         maxSupply = _maxSupply;
     }
