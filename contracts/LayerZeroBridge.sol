@@ -46,8 +46,8 @@ contract LayerZeroBridge is AccessControl {
         uint256 brideFee
     );
     event TokenAdd(address indexed token, uint256 indexed tokenId);
-    event TokenRemove(address indexed token);
-    event TokenUpdate(address indexed token);
+    event TokenRemove(address indexed token, uint256 indexed tokenId);
+    event TokenUpdate(address indexed token, uint256 indexed tokenId);
 
     constructor(address _lzEndpoint, address _oApp) {
         lzEndpoint = ILayerZeroEndpointV2(_lzEndpoint);
@@ -184,7 +184,7 @@ contract LayerZeroBridge is AccessControl {
 
         delete tokens[tokenId];
         delete tokenIds[_nativeToken];
-        emit TokenRemove(_nativeToken);
+        emit TokenRemove(_nativeToken, tokenId);
     }
 
     /**
@@ -230,7 +230,7 @@ contract LayerZeroBridge is AccessControl {
         token.gateway = _gateway;
         token.isBurnable = _isBurnable;
 
-        emit TokenUpdate(_nativeToken);
+        emit TokenUpdate(_nativeToken, _tokenId);
     }
 
     /**
