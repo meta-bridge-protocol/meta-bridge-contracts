@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "./utils/DeployFactory.sol";
 import "./interfaces/ILayerZeroBridge.sol";
 import "./NativeToken.sol";
 import "./MinterGateway.sol";
@@ -43,43 +44,45 @@ contract NewTokensDeployer is Ownable {
         address _treasury,
         bool _isHomeChain
     ) external {
-        NativeToken nativeToken = new NativeToken(
-            _maxSupply,
-            _name,
-            _symbol,
-            address(this)
+        uint256 salt = uint256(keccak256(abi.encode(msg.sender)));
+
+        address nativeToken = DeployFactory.deployContract(
+            _getNativeTokenBytecode(_maxSupply, _name, _symbol),
+            salt
         );
 
-        MBToken mbToken = new MBToken(
-            string.concat("Meta", _name),
-            string.concat("mb", _symbol),
-            mbOApp
+        address mbToken = DeployFactory.deployContract(
+            _getMBTokenBytecode(
+                string.concat("Meta", _name),
+                string.concat("mb", _symbol)
+            ),
+            salt
         );
-        MinterGateway gateway = new MinterGateway(
-            msg.sender,
-            address(nativeToken),
-            address(mbToken)
+
+        address gateway = DeployFactory.deployContract(
+            _getGatewayBytecode(msg.sender, nativeToken, mbToken),
+            salt
         );
 
         if (_isHomeChain) {
-            nativeToken.mint(_treasury, _maxSupply);
+            NativeToken(nativeToken).mint(_treasury, _maxSupply);
         }
 
-        _setupRoles(address(nativeToken), address(mbToken), address(gateway));
+        _setupRoles(nativeToken, mbToken, gateway);
 
         ILayerZeroBridge(lzBridge).addToken(
             _tokenId,
-            address(nativeToken),
-            address(mbToken),
+            nativeToken,
+            mbToken,
             _treasury,
-            address(gateway),
+            gateway,
             true
         );
 
-        emit NativeTokenCreated(msg.sender, address(nativeToken));
-        emit MBTokenCreated(msg.sender, address(mbToken));
-        emit GatewayCreated(msg.sender, address(gateway));
-        emit TokenListed(address(nativeToken), address(mbToken), _tokenId);
+        emit NativeTokenCreated(msg.sender, nativeToken);
+        emit MBTokenCreated(msg.sender, mbToken);
+        emit GatewayCreated(msg.sender, gateway);
+        emit TokenListed(nativeToken, mbToken, _tokenId);
     }
 
     /**
@@ -112,5 +115,39 @@ contract NewTokensDeployer is Ownable {
 
         mbToken.grantRole(mbToken.DEFAULT_ADMIN_ROLE(), msg.sender);
         mbToken.renounceRole(mbToken.DEFAULT_ADMIN_ROLE(), address(this));
+    }
+
+    function _getNativeTokenBytecode(
+        uint256 _maxSupply,
+        string memory _name,
+        string memory _symbol
+    ) internal view returns (bytes memory) {
+        bytes memory bytecode = type(NativeToken).creationCode;
+        return
+            abi.encodePacked(
+                bytecode,
+                abi.encode(_maxSupply, _name, _symbol, address(this))
+            );
+    }
+
+    function _getMBTokenBytecode(
+        string memory _name,
+        string memory _symbol
+    ) internal view returns (bytes memory) {
+        bytes memory bytecode = type(MBToken).creationCode;
+        return abi.encodePacked(bytecode, abi.encode(_name, _symbol, mbOApp));
+    }
+
+    function _getGatewayBytecode(
+        address _admin,
+        address _nativeToken,
+        address _mbToken
+    ) internal pure returns (bytes memory) {
+        bytes memory bytecode = type(MinterGateway).creationCode;
+        return
+            abi.encodePacked(
+                bytecode,
+                abi.encode(_admin, _nativeToken, _mbToken)
+            );
     }
 }
