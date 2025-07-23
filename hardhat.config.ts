@@ -32,15 +32,27 @@ const networks: { [networkName: string]: HttpNetworkUserConfig } = {
     gas: 1600000,
     gasPrice: 5616147756,
   },
+  bsc: {
+    eid: EndpointId.BSC_V2_MAINNET,
+    url: "https://bsc-rpc.publicnode.com",
+    chainId: 56,
+    accounts
+  },
   bscTestnet: {
     eid: EndpointId.BSC_V2_TESTNET,
     url: "https://bsc-testnet-rpc.publicnode.com",
     chainId: 97,
     accounts,
   },
+  arbitrumOne: {
+    eid: EndpointId.ARBITRUM_V2_MAINNET,
+    url: "https://arb1.arbitrum.io/rpc",
+    chainId: 42161,
+    accounts
+  },
   arbitrumSepolia: {
     eid: EndpointId.ARBSEP_V2_TESTNET,
-    url: "https://rpc.ankr.com/arbitrum_sepolia",
+    url: "https://arbitrum-sepolia-rpc.publicnode.com",
     chainId: 421614,
     accounts,
   },
@@ -70,7 +82,8 @@ const networks: { [networkName: string]: HttpNetworkUserConfig } = {
     accounts,
   },
   base: {
-    url: "https://rpc.ankr.com/base",
+    eid: EndpointId.BASE_V2_MAINNET,
+    url: "https://mainnet.base.org",
     chainId: 8453,
     accounts,
   },
@@ -133,6 +146,7 @@ const config: HardhatUserConfig = {
       lineaMainnet: process.env.LINEASCAN_KEY || "",
       optimisticEthereum: process.env.OPTIMISM_KEY || "",
       avalancheFujiTestnet: process.env.AVALANCHE_KEY || "",
+      arbitrumOne: process.env.ARBSCAN_KEY || "",
       arbitrumSepolia: process.env.ARBSCAN_KEY || "",
       avalanche: process.env.AVALANCHE_KEY || "",
       ftm: process.env.FTMSCAN_KEY || "",
