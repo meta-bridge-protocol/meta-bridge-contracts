@@ -8,14 +8,22 @@ function sleep(milliseconds) {
 async function main() {
 
   const args = [
-    "0x6EDCE65403992e310A62460808c4b910D972f10f",
-    "0x4Fa47b84a020D89888D79B16F120673F7906F17b"
+    "0x6F475642a6e85809B1c36Fa62763669b1b48DD5B", // lzEndpoint
+    "0xa1373Bc11Ae2Bf43DA5D2B944C8f01D2053FeaCf" // OApp
   ]
 
   const provider = new providers.JsonRpcProvider(hre.network.config.url)
   const signer = new Wallet(process.env.PRIVATE_KEY, provider);
 
-  const contract = await ethers.deployContract("LayerZeroBridge", args, signer);
+  // const contract = await ethers.deployContract("LayerZeroBridge", args, signer);
+
+  const factory = await ethers.getContractFactory("LayerZeroBridge");
+  const contract = await factory.deploy(...args, {
+    gasLimit: 4_000_000,
+    // maxPriorityFeePerGas: feeData.maxPriorityFeePerGas, // tip the miner to execute the transaction
+    // maxFeePerGas: feeData.maxFeePerGas, // maxFeePerGas = baseFeePerGas + maxPriorityFeePerGas
+    type: 2
+  })
 
   await contract.deployed();
 
