@@ -1,10 +1,10 @@
 import hre, { ethers, upgrades } from "hardhat";
 
 async function deployEscrowContract() {
-  let gateway = "0xb42cf2f220c38466f41dE9e61dB621B7001D52d8";
-  let msig = "0xb57490CDAABEDb450df33EfCdd93079A24ac5Ce5";
-  let thresholdAmount = "5000000000000000000"; // 200 TOKEN
-  let deployer = "0xb57490CDAABEDb450df33EfCdd93079A24ac5Ce5";
+  let gateway = "0x20b7244F8f38618aB97De07BAeff270d68eCcC21";
+  let msig = "0x7aC46BA21CD4d94C2c74441f77a051951f4b3787";
+  let thresholdAmount = "100000000000000000000"; // 200 TOKEN
+  let deployer = "0x7aC46BA21CD4d94C2c74441f77a051951f4b3787";
   const factory = await ethers.getContractFactory("Escrow", {
     signer: await ethers.getSigner(deployer),
   });

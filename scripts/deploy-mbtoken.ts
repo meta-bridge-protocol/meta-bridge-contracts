@@ -2,21 +2,20 @@ import hre, { ethers } from "hardhat";
 
 async function deployGatewayContract() {
   const params = [
-    "MetaSymemeio",
-    "mbSYME",
+    "0xa1373Bc11Ae2Bf43DA5D2B944C8f01D2053FeaCf"
   ];
 
-  // const gateway = await ethers.deployContract("Gateway", params);
+  const mbToken = await ethers.deployContract("MetaDEUS", params);
 
-  // await gateway.deployed();
+  await mbToken.deployed();
 
-  // console.log("Gateway deployed at:", gateway.address);
+  console.log("mbToken deployed at:", mbToken.address);
 
   try {
     await hre.run("verify:verify", {
-      address: "0x352946E9D37E627f7f3399Cf1E4C979804E99A73",
+      address: mbToken.address,
       constructorArguments: params,
-      contract: "contracts/MBToken.sol:MBToken"
+      contract: "contracts/MetaDEUS.sol:MetaDEUS"
     });
   } catch (e) {
     console.log(e);
