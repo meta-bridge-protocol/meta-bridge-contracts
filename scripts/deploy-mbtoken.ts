@@ -2,7 +2,7 @@ import hre, { ethers } from "hardhat";
 
 async function deployGatewayContract() {
   const params = [
-    "0xa1373Bc11Ae2Bf43DA5D2B944C8f01D2053FeaCf"
+    "0xa1373Bc11Ae2Bf43DA5D2B944C8f01D2053FeaCf" // mbOApp
   ];
 
   const mbToken = await ethers.deployContract("MetaDEUS", params);
