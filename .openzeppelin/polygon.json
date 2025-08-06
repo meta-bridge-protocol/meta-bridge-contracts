@@ -1,0 +1,158 @@
+{
+  "manifestVersion": "3.2",
+  "admin": {
+    "address": "0x66A341888Ca4ed0387cd1B5DFFA9f009caC4a0d7",
+    "txHash": "0xad04e2befe965f326116175714bd1ca8274ae1316f61bf1989bfeb613b0539b0"
+  },
+  "proxies": [
+    {
+      "address": "0x183Daf1e89763968C1BFbd1C98BC1a44820f0729",
+      "txHash": "0x62b84065835b45fe4851df31e67e0f2321a694dc9283cdead073257bd93d45c1",
+      "kind": "transparent"
+    }
+  ],
+  "impls": {
+    "1eec4f251a4a1023983e4c494a5b661751b77207f815dd7bcd00a858f06bd072": {
+      "address": "0xFFe835cEFE606b352CbBf37738104d85C2eC1213",
+      "txHash": "0xa2061a10dd17ac441e6a2e2c208c85155831059aae9915b9f74e3ff9eef8d9a6",
+      "layout": {
+        "solcVersion": "0.8.20",
+        "storage": [
+          {
+            "label": "gatewayAddress",
+            "offset": 0,
+            "slot": "0",
+            "type": "t_address",
+            "contract": "Escrow",
+            "src": "contracts/Escrow.sol:23"
+          },
+          {
+            "label": "nativeTokenAddress",
+            "offset": 0,
+            "slot": "1",
+            "type": "t_address",
+            "contract": "Escrow",
+            "src": "contracts/Escrow.sol:24"
+          },
+          {
+            "label": "treasureAddress",
+            "offset": 0,
+            "slot": "2",
+            "type": "t_address",
+            "contract": "Escrow",
+            "src": "contracts/Escrow.sol:25"
+          },
+          {
+            "label": "thresholdAmount",
+            "offset": 0,
+            "slot": "3",
+            "type": "t_uint256",
+            "contract": "Escrow",
+            "src": "contracts/Escrow.sol:26"
+          }
+        ],
+        "types": {
+          "t_address": {
+            "label": "address",
+            "numberOfBytes": "20"
+          },
+          "t_uint256": {
+            "label": "uint256",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_bytes32,t_struct(AddressSet)7691_storage)": {
+            "label": "mapping(bytes32 => struct EnumerableSet.AddressSet)"
+          },
+          "t_bytes32": {
+            "label": "bytes32"
+          },
+          "t_struct(AddressSet)7691_storage": {
+            "label": "struct EnumerableSet.AddressSet",
+            "members": [
+              {
+                "label": "_inner",
+                "type": "t_struct(Set)7376_storage"
+              }
+            ]
+          },
+          "t_struct(Set)7376_storage": {
+            "label": "struct EnumerableSet.Set",
+            "members": [
+              {
+                "label": "_values",
+                "type": "t_array(t_bytes32)dyn_storage"
+              },
+              {
+                "label": "_positions",
+                "type": "t_mapping(t_bytes32,t_uint256)"
+              }
+            ]
+          },
+          "t_array(t_bytes32)dyn_storage": {
+            "label": "bytes32[]"
+          },
+          "t_mapping(t_bytes32,t_uint256)": {
+            "label": "mapping(bytes32 => uint256)"
+          },
+          "t_mapping(t_bytes32,t_struct(RoleData)3811_storage)": {
+            "label": "mapping(bytes32 => struct AccessControlUpgradeable.RoleData)"
+          },
+          "t_struct(RoleData)3811_storage": {
+            "label": "struct AccessControlUpgradeable.RoleData",
+            "members": [
+              {
+                "label": "hasRole",
+                "type": "t_mapping(t_address,t_bool)"
+              },
+              {
+                "label": "adminRole",
+                "type": "t_bytes32"
+              }
+            ]
+          },
+          "t_mapping(t_address,t_bool)": {
+            "label": "mapping(address => bool)"
+          },
+          "t_bool": {
+            "label": "bool"
+          },
+          "t_uint64": {
+            "label": "uint64"
+          }
+        },
+        "namespaces": {
+          "erc7201:openzeppelin.storage.AccessControlEnumerable": [
+            {
+              "contract": "AccessControlEnumerableUpgradeable",
+              "label": "_roleMembers",
+              "type": "t_mapping(t_bytes32,t_struct(AddressSet)7691_storage)",
+              "src": "@openzeppelin/contracts-upgradeable/access/extensions/AccessControlEnumerableUpgradeable.sol:19"
+            }
+          ],
+          "erc7201:openzeppelin.storage.AccessControl": [
+            {
+              "contract": "AccessControlUpgradeable",
+              "label": "_roles",
+              "type": "t_mapping(t_bytes32,t_struct(RoleData)3811_storage)",
+              "src": "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol:61"
+            }
+          ],
+          "erc7201:openzeppelin.storage.Initializable": [
+            {
+              "contract": "Initializable",
+              "label": "_initialized",
+              "type": "t_uint64",
+              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:69"
+            },
+            {
+              "contract": "Initializable",
+              "label": "_initializing",
+              "type": "t_bool",
+              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:73"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

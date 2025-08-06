@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// This gateway is for all destination chains with the newly deployed mintable-burnable Symemeio
+// This gateway is for all destination chains with the newly deployed mintable-burnable NativeToken
 // on the original chain (BASE), we use a different gateway contract, see ... SourceGateway.sol !!FIXME!! ?
 pragma solidity ^0.8.20;
 
@@ -8,7 +8,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
-import "./Symemeio.sol";
+import "./interfaces/INativeToken.sol";
 
 /// @title MinterGateway
 /// @notice This contract allows users to swap mb tokens to native tokens and vice versa.
@@ -134,6 +134,9 @@ contract MinterGateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
     ) external onlyRole(CONFIG_ROLE) {
         require(_burnFeeScale > 0, "Invalid burnFeeScale");
         require(_treasuryFeeScale > 0, "Invalid treasuryFeeScale");
+        if (_treasuryFee > 0) {
+            require(_feeTreasury != address(0), "Invalid feeTreasury address");
+        }
 
         periodLength = _periodLength;
         periodMaxAmount = _maxAmount;
@@ -171,12 +174,12 @@ contract MinterGateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
     }
 
     /**
-     * @dev this is the specific implemntation for Symemeio
+     * @dev this is the specific implemntation for NativeToken
      * @return The maximum swapable amount (given per period limits -- taking max supply of native token on the chain )
      */
     function swappableAmount() public view returns (uint256) {
-        uint256 supply = Symemeio(nativeToken).maxSupply() -
-            Symemeio(nativeToken).totalSupply();
+        uint256 supply = INativeToken(nativeToken).maxSupply() -
+            INativeToken(nativeToken).totalSupply();
         if (periodLength > 0) {
             uint256 result;
             // if the period has not ended yet
@@ -243,10 +246,10 @@ contract MinterGateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
 
         // Mint native tokens (treasury fee) to the treasury address
         if (treasuryFeeAmount != 0) {
-            Symemeio(nativeToken).mint(feeTreasury, treasuryFeeAmount);
+            INativeToken(nativeToken).mint(feeTreasury, treasuryFeeAmount);
         }
         // Mint native tokens to the user address
-        Symemeio(nativeToken).mint(to_, netAmount);
+        INativeToken(nativeToken).mint(to_, netAmount);
 
         _checkLimits(netAmount);
 
