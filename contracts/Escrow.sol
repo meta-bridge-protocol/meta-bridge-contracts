@@ -124,6 +124,10 @@ contract Escrow is Initializable, AccessControlEnumerableUpgradeable {
         treasuryAddress = _treasuryAddress;
     }
 
+    function setGateway(address _gateway) external onlyRole(ADMIN_ROLE) {
+        gatewayAddress = _gateway;
+    }
+
     function withdrawERC20(
         address token,
         uint256 amount

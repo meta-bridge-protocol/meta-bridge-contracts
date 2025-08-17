@@ -23,6 +23,8 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
     address public nativeToken;
     address public mbToken;
 
+    bool public isTokenBurnable; // Specifies whether the token is burnable or not
+
     /**
      * @notice % fee that will be burnt ( less native tokens are received than mbtokens )
      * It's used along with burnFeeScale to determine the fee amount that will be burnt
@@ -35,6 +37,8 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
      * burnFee = 1 and burnFeescale = 50 also leads to burn 2/100 of swap amount;
      */
     uint32 public burnFeeScale;
+
+    address public burnAddress; // The address that burnt tokens will be transferred to when token is not burnable
 
     /**
      * @notice % fee that will be tranferred to the treasury ( less native tokens are received than mbtokens )
@@ -83,7 +87,12 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
     );
 
     /// @notice Constructs a new Gateway contract.
-    constructor(address _admin, address _nativeToken, address _mbToken) {
+    constructor(
+        address _admin,
+        address _nativeToken,
+        address _mbToken,
+        bool _isTokenBurnable
+    ) {
         require(
             _admin != address(0),
             "Gateway: ADMIN_ADDRESS_MUST_BE_NON-ZERO"
@@ -95,6 +104,7 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
         mbToken = _mbToken;
         burnFeeScale = 100;
         treasuryFeeScale = 100;
+        isTokenBurnable = _isTokenBurnable;
     }
 
     /// @notice Swaps a specified amount of mb tokens to native tokens.
@@ -193,6 +203,7 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
     function config(
         uint32 _burnFee,
         uint32 _burnFeeScale,
+        address _burnAddress,
         uint32 _treasuryFee,
         uint32 _treasuryFeeScale,
         address _feeTreasury
@@ -202,6 +213,7 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
 
         burnFee = _burnFee;
         burnFeeScale = _burnFeeScale;
+        burnAddress = _burnAddress;
         treasuryFee = _treasuryFee;
         treasuryFeeScale = _treasuryFeeScale;
         feeTreasury = _feeTreasury;
@@ -302,13 +314,21 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
         }
 
         if (burnFeeAmount != 0) {
-            // Transfer native tokens (burn fee) to the address zero (burn)
-            IERC20(nativeToken).transfer(address(0), burnFeeAmount);
+            // Burn native tokens (burn fee) or transfer tokens to the burn address (can be zero address if token supports)
+            if (isTokenBurnable) {
+                try ERC20Burnable(nativeToken).burn(burnFeeAmount) {} catch {}
+            } else {
+                try
+                    IERC20(nativeToken).transfer(burnAddress, burnFeeAmount)
+                {} catch {}
+            }
         }
 
         // Transfer native tokens (treasury fee) to the treasury address
         if (treasuryFeeAmount != 0) {
-            IERC20(nativeToken).transfer(feeTreasury, treasuryFeeAmount);
+            try
+                IERC20(nativeToken).transfer(feeTreasury, treasuryFeeAmount)
+            {} catch {}
         }
 
         // Transfer the native tokens to the user
