@@ -219,6 +219,12 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
         feeTreasury = _feeTreasury;
     }
 
+    function setBurnableFlag(
+        bool _isTokenBurnable
+    ) external onlyRole(ADMIN_ROLE) {
+        isTokenBurnable = _isTokenBurnable;
+    }
+
     /**
      * @notice Withdraw tokens from the contract and transfer them to the recipient.
      * @param _amount the amount of token to withdraw.
