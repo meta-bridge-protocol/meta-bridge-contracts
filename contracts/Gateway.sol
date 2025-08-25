@@ -38,8 +38,6 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
      */
     uint32 public burnFeeScale;
 
-    address public burnAddress; // The address that burnt tokens will be transferred to when token is not burnable
-
     /**
      * @notice % fee that will be tranferred to the treasury ( less native tokens are received than mbtokens )
      * It's used along with treasuryFeeScale to determine the fee amount that will be transferred to the treasury
@@ -203,17 +201,18 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
     function config(
         uint32 _burnFee,
         uint32 _burnFeeScale,
-        address _burnAddress,
         uint32 _treasuryFee,
         uint32 _treasuryFeeScale,
         address _feeTreasury
     ) external onlyRole(CONFIG_ROLE) {
         require(_burnFeeScale > 0, "Invalid burnFeeScale");
         require(_treasuryFeeScale > 0, "Invalid treasuryFeeScale");
+        if (_burnFee > 0) {
+            require(isTokenBurnable, "Token is not burnable");
+        }
 
         burnFee = _burnFee;
         burnFeeScale = _burnFeeScale;
-        burnAddress = _burnAddress;
         treasuryFee = _treasuryFee;
         treasuryFeeScale = _treasuryFeeScale;
         feeTreasury = _feeTreasury;
@@ -313,15 +312,9 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
             IERC20(mbToken).safeTransfer(to_, amount_ - maxSwappableAmount);
         }
 
-        if (burnFeeAmount != 0) {
-            // Burn native tokens (burn fee) or transfer tokens to the burn address (can be zero address if token supports)
-            if (isTokenBurnable) {
-                try ERC20Burnable(nativeToken).burn(burnFeeAmount) {} catch {}
-            } else {
-                try
-                    IERC20(nativeToken).transfer(burnAddress, burnFeeAmount)
-                {} catch {}
-            }
+        if (burnFeeAmount != 0 && isTokenBurnable) {
+            // Burn native tokens (burn fee)
+            try ERC20Burnable(nativeToken).burn(burnFeeAmount) {} catch {}
         }
 
         // Transfer native tokens (treasury fee) to the treasury address
