@@ -5,6 +5,7 @@ async function deployGatewayContract() {
     "0x7aC46BA21CD4d94C2c74441f77a051951f4b3787", // admin
     "0xde5ed76e7c05ec5e4572cfc88d1acea165109e44", // nativeToken
     "0x23164095ed9FC0323152dE1A0A309146D0cE7be4", // mbToken
+    true, // isTokenBurnable
   ];
 
   const gateway = await ethers.deployContract("Gateway", params);
