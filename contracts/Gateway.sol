@@ -23,6 +23,8 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
     address public nativeToken;
     address public mbToken;
 
+    bool public isTokenBurnable; // Specifies whether the token is burnable or not
+
     /**
      * @notice % fee that will be burnt ( less native tokens are received than mbtokens )
      * It's used along with burnFeeScale to determine the fee amount that will be burnt
@@ -83,7 +85,12 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
     );
 
     /// @notice Constructs a new Gateway contract.
-    constructor(address _admin, address _nativeToken, address _mbToken) {
+    constructor(
+        address _admin,
+        address _nativeToken,
+        address _mbToken,
+        bool _isTokenBurnable
+    ) {
         require(
             _admin != address(0),
             "Gateway: ADMIN_ADDRESS_MUST_BE_NON-ZERO"
@@ -95,6 +102,7 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
         mbToken = _mbToken;
         burnFeeScale = 100;
         treasuryFeeScale = 100;
+        isTokenBurnable = _isTokenBurnable;
     }
 
     /// @notice Swaps a specified amount of mb tokens to native tokens.
@@ -191,6 +199,8 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
      * e.g. fee 5 and scale 1000 leads to the burn fee 0.5%
      */
     function config(
+        uint256,
+        uint256,
         uint32 _burnFee,
         uint32 _burnFeeScale,
         uint32 _treasuryFee,
@@ -199,12 +209,21 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
     ) external onlyRole(CONFIG_ROLE) {
         require(_burnFeeScale > 0, "Invalid burnFeeScale");
         require(_treasuryFeeScale > 0, "Invalid treasuryFeeScale");
+        if (_burnFee > 0) {
+            require(isTokenBurnable, "Token is not burnable");
+        }
 
         burnFee = _burnFee;
         burnFeeScale = _burnFeeScale;
         treasuryFee = _treasuryFee;
         treasuryFeeScale = _treasuryFeeScale;
         feeTreasury = _feeTreasury;
+    }
+
+    function setBurnableFlag(
+        bool _isTokenBurnable
+    ) external onlyRole(ADMIN_ROLE) {
+        isTokenBurnable = _isTokenBurnable;
     }
 
     /**
@@ -224,6 +243,13 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
         } else {
             IERC20(_tokenAddr).transfer(_to, _amount);
         }
+    }
+
+    /**
+     * @return The maximum swapable amount -- equals the balance of gateway
+     */
+    function swappableAmount() public view returns (uint256) {
+        return IERC20(nativeToken).balanceOf(address(this));
     }
 
     /**
@@ -301,14 +327,16 @@ contract Gateway is ReentrancyGuard, AccessControlEnumerable, Pausable {
             IERC20(mbToken).safeTransfer(to_, amount_ - maxSwappableAmount);
         }
 
-        if (burnFeeAmount != 0) {
-            // Transfer native tokens (burn fee) to the address zero (burn)
-            IERC20(nativeToken).transfer(address(0), burnFeeAmount);
+        if (burnFeeAmount != 0 && isTokenBurnable) {
+            // Burn native tokens (burn fee)
+            try ERC20Burnable(nativeToken).burn(burnFeeAmount) {} catch {}
         }
 
         // Transfer native tokens (treasury fee) to the treasury address
         if (treasuryFeeAmount != 0) {
-            IERC20(nativeToken).transfer(feeTreasury, treasuryFeeAmount);
+            try
+                IERC20(nativeToken).transfer(feeTreasury, treasuryFeeAmount)
+            {} catch {}
         }
 
         // Transfer the native tokens to the user
